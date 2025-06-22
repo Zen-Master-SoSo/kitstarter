@@ -20,7 +20,7 @@ from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
-from kitstarter import	settings, KEY_FILES_ROOT, KEY_FILES_CURRENT
+from kitstarter import	settings, PACKAGE_DIR, KEY_FILES_ROOT, KEY_FILES_CURRENT
 from kitstarter.starter_kits import StarterKit
 from kitstarter.gui import GeometrySaver
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
@@ -45,6 +45,10 @@ class MainWindow(QMainWindow, GeometrySaver):
 		font.setPointSizeF(11.5)
 		self.lst_instruments.setFont(font)
 		self.lst_instruments.setFixedWidth(180)
+		self.icon_complete = QIcon(os.path.join(PACKAGE_DIR, 'res', 'inst-complete.svg'))
+		self.icon_incomplete = QIcon(os.path.join(PACKAGE_DIR, 'res', 'inst-incomplete.svg'))
+		self.icon_sample_okay = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
+		self.icon_sample_mismatch = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
 		self.kit = StarterKit()
 		# Setup JackConnectionManager
 		self.conn_man = JackConnectionManager()
@@ -78,7 +82,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		for pitch in iter_pitch_by_group():
 			list_item = QListWidgetItem(self.lst_instruments)
 			list_item.setText(MIDI_DRUM_NAMES[pitch])
-			list_item.setIcon(QIcon.fromTheme('dialog-question'))
+			list_item.setIcon(self.icon_incomplete)
 			list_item.setData(Qt.UserRole, pitch)
 			samples_widget = SamplesWidget(self, self.kit.instrument(pitch))
 			samples_widget.sig_updating.connect(self.slot_updating)
@@ -352,14 +356,16 @@ class MainWindow(QMainWindow, GeometrySaver):
 		sfz_inst_item = QListWidgetItem(self.lst_samples)
 		sfz_inst_item.setText(basename(path))
 		sfz_inst_item.setData(Qt.UserRole, soundfile)
+		#from random import randint
+		#sfz_inst_item.setIcon(self.icon_sample_mismatch if randint(0,99) & 1 else self.icon_sample_okay)
 		s_samp = path + \
 			f'\nThis file has a sample rate of {soundfile.samplerate} Hz,\n'
 		if soundfile.samplerate != self.audio_player.client.samplerate:
-			sfz_inst_item.setIcon(QIcon.fromTheme('face-sad'))
+			sfz_inst_item.setIcon(self.icon_sample_mismatch)
 			sfz_inst_item.setToolTip(s_samp + \
 				f'while the JACK server is running at {self.audio_player.client.samplerate} Hz')
 		else:
-			sfz_inst_item.setIcon(QIcon.fromTheme('face-cool'))
+			sfz_inst_item.setIcon(self.icon_sample_okay)
 			sfz_inst_item.setToolTip(s_samp + 'the same as the JACK server')
 
 	# -----------------------------------------------------------------
@@ -458,8 +464,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.statusbar.showMessage('Preparing to update ...')
 		for list_item in self.iter_instrument_list():
 			instrument = self.kit.instrument(list_item.data(Qt.UserRole))
-			list_item.setIcon(QIcon.fromTheme(
-				'dialog-information' if len(instrument.samples) else 'dialog-question'))
+			list_item.setIcon(self.icon_complete if len(instrument.samples) else self.icon_incomplete)
 
 	@pyqtSlot()
 	def slot_updated(self):
