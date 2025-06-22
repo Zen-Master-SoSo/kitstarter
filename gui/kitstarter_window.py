@@ -298,8 +298,16 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	@pyqtSlot(QItemSelection, QItemSelection)
 	def slot_files_selection_changed(self, *_):
-		QApplication.setOverrideCursor(Qt.WaitCursor)
-		self.lst_samples.clear()
+		path = self.files_model.filePath(self.tree_sfz_files.currentIndex())
+		settings().setValue(KEY_FILES_CURRENT, path)
+		self.filter_instruments_combo()
+		self.update_samples()
+
+	@pyqtSlot(int)
+	def slot_sfz_inst_curr_changed(self, _):
+		self.update_samples()
+
+	def filter_instruments_combo(self):
 		prev_text = self.cmb_sfz_instrument.currentText()
 		with SigBlock(self.cmb_sfz_instrument):
 			self.cmb_sfz_instrument.clear()
@@ -307,14 +315,10 @@ class MainWindow(QMainWindow, GeometrySaver):
 			for index in self.tree_sfz_files.selectedIndexes():
 				path = self.files_model.filePath(index)
 				ext = splitext(path)[-1]
-				settings().setValue(KEY_FILES_CURRENT, path)
-				if not self.files_model.isDir(index):
-					if ext == '.sfz':
-						for inst in self.drumkit(path).instruments():
-							if self.cmb_sfz_instrument.findData(inst.pitch) == -1:
-								self.cmb_sfz_instrument.addItem(inst.name, inst.pitch)
-					elif ext in SAMPLE_EXTENSIONS:
-						self.lst_samples_append(path)
+				if not self.files_model.isDir(index) and ext == '.sfz':
+					for inst in self.drumkit(path).instruments():
+						if self.cmb_sfz_instrument.findData(inst.pitch) == -1:
+							self.cmb_sfz_instrument.addItem(inst.name, inst.pitch)
 			if bool(self.cmb_sfz_instrument.count()):
 				self.cmb_sfz_instrument.insertItem(0, '[all]', 0)
 				self.lbl_sfz_inst_heading.setEnabled(True)
@@ -322,25 +326,28 @@ class MainWindow(QMainWindow, GeometrySaver):
 			self.cmb_sfz_instrument.setCurrentText(prev_text)
 		else:
 			self.cmb_sfz_instrument.setCurrentIndex(0)
-		QApplication.restoreOverrideCursor()
 
-	@pyqtSlot(int)
-	def slot_sfz_inst_curr_changed(self, _):
-		if self.cmb_sfz_instrument.count():
-			QApplication.setOverrideCursor(Qt.WaitCursor)
-			self.lst_samples.clear()
-			pitch = self.cmb_sfz_instrument.currentData()
-			for index in self.tree_sfz_files.selectedIndexes():
-				if not self.files_model.isDir(index):
-					path = abspath(self.files_model.filePath(index))
-					ext = splitext(path)[-1]
-					if ext == '.sfz':
-						if pitch > 0:
+	def update_samples(self):
+		QApplication.setOverrideCursor(Qt.WaitCursor)
+		self.lst_samples.clear()
+		pitch = self.cmb_sfz_instrument.currentData() or 0
+		for index in self.tree_sfz_files.selectedIndexes():
+			if not self.files_model.isDir(index):
+				path = abspath(self.files_model.filePath(index))
+				ext = splitext(path)[-1]
+				if ext == '.sfz':
+					if pitch > 0:
+						try:
 							self.append_sfz_samples(self.drumkit(path).instrument(pitch))
-						else:
-							for instrument in self.drumkit(path).instruments():
-								self.append_sfz_samples(instrument)
-			QApplication.restoreOverrideCursor()
+						except KeyError:
+							logging.warning('Drumkit "%s" has no instrument pitch %d',
+								self.drumkit(path).name, pitch)
+					else:
+						for instrument in self.drumkit(path).instruments():
+							self.append_sfz_samples(instrument)
+				elif ext in SAMPLE_EXTENSIONS:
+					self.lst_samples_append(path)
+		QApplication.restoreOverrideCursor()
 
 	def append_sfz_samples(self, instrument):
 		for sample in instrument.samples():
@@ -356,8 +363,6 @@ class MainWindow(QMainWindow, GeometrySaver):
 		sfz_inst_item = QListWidgetItem(self.lst_samples)
 		sfz_inst_item.setText(basename(path))
 		sfz_inst_item.setData(Qt.UserRole, soundfile)
-		#from random import randint
-		#sfz_inst_item.setIcon(self.icon_sample_mismatch if randint(0,99) & 1 else self.icon_sample_okay)
 		s_samp = path + \
 			f'\nThis file has a sample rate of {soundfile.samplerate} Hz,\n'
 		if soundfile.samplerate != self.audio_player.client.samplerate:
