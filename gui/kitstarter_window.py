@@ -18,9 +18,10 @@ from liquiphy import LiquidSFZ
 from jack_connection_manager import JackConnectionManager
 from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
-from sfzen.drumkits import Drumkit, StarterKit, iter_pitch_by_group
+from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
 from kitstarter import	settings, KEY_FILES_ROOT, KEY_FILES_CURRENT
+from kitstarter.starter_kits import StarterKit
 from kitstarter.gui import GeometrySaver
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
 

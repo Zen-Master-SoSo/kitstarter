@@ -10,9 +10,8 @@ import sys, logging
 from PyQt5.QtCore import	pyqtSlot
 from PyQt5.QtWidgets import	QApplication, QDialog, QVBoxLayout, QPushButton
 
-from sfzen.drumkits import StarterKit
-
 from kitstarter import set_application_style
+from kitstarter.starter_kits import StarterKit
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
 
 
