@@ -70,6 +70,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.audio_player = None	# Instantiated after initial paint delay
 		self.current_midi_source = None
 		self.current_audio_sink = None
+		self.left_mouse_button_pressed = False
 		# Startup paths
 		root_path = settings().value(KEY_FILES_ROOT, QDir.homePath())
 		current_path = settings().value(KEY_FILES_CURRENT, QDir.homePath())
@@ -247,6 +248,8 @@ class MainWindow(QMainWindow, GeometrySaver):
 				if port.client_name == self.current_audio_sink ]
 			for src_port, dest_port in zip(self.synth.output_ports, audio_sink_ports):
 				self.conn_man.connect(src_port, dest_port)
+			for src_port, dest_port in zip(self.audio_player.output_ports, audio_sink_ports):
+				self.conn_man.connect(src_port, dest_port)
 
 	# -----------------------------------------------------------------
 	# Instrument list management
@@ -291,8 +294,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		Triggered by "File -> Save bashed kit" menu
 		See also: slot_drumkit_bashed
 		"""
-		filename = QFileDialog.getSaveFileName(self, 'Save as .sfz ...', '', "SFZ (*.sfz)")
-		logging.debug(filename)
+		filename, _ = QFileDialog.getSaveFileName(self, 'Save as .sfz ...', '', "SFZ (*.sfz)")
 		if filename:
 			self.sfz_filename = filename
 			self.save()
@@ -495,9 +497,10 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	@pyqtSlot(QListWidgetItem)
 	def slot_sample_pressed(self, list_item):
-		soundfile = list_item.data(Qt.UserRole).soundfile
-		soundfile.seek(0)
-		self.audio_player.play_python_soundfile(soundfile)
+		if QApplication.mouseButtons() == Qt.LeftButton:
+			soundfile = list_item.data(Qt.UserRole).soundfile
+			soundfile.seek(0)
+			self.audio_player.play_python_soundfile(soundfile)
 
 	def samples_mouse_release(self, event):
 		self.audio_player.stop()
