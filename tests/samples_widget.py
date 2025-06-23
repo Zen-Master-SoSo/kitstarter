@@ -27,7 +27,7 @@ class TestWindow(QDialog):
 		self.instrument = self.kit.instrument('side_stick')
 		lo = QVBoxLayout()
 		self.tracks_widget = SamplesWidget(self, self.instrument)
-		self.tracks_widget.sig_updated.connect(self.slot_instrument_changed)
+		self.tracks_widget.sig_updated.connect(self.slot_updated)
 		self.tracks_widget.sig_mouse_press.connect(self.slot_mouse_press)
 		self.tracks_widget.sig_mouse_release.connect(self.slot_mouse_release)
 		self.samples = iter([
@@ -50,7 +50,7 @@ class TestWindow(QDialog):
 			self.add_button.setEnabled(False)
 
 	@pyqtSlot()
-	def slot_instrument_changed(self):
+	def slot_updated(self):
 		self.kit.write(sys.stdout)
 
 	@pyqtSlot(int, int)

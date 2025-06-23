@@ -87,7 +87,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QTreeView" name="tree_sfz_files">
+           <widget class="QTreeView" name="tree_files">
             <property name="minimumSize">
              <size>
               <width>150</width>
@@ -122,28 +122,32 @@
              </spacer>
             </item>
             <item>
-             <widget class="QLabel" name="lbl_sfz_inst_heading">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
+             <widget class="QCheckBox" name="chk_filter_instrument">
               <property name="text">
-               <string>Instrument:</string>
+               <string>Filter &quot;instument&quot;</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="cmb_sfz_instrument">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
+             <widget class="QCheckBox" name="chk_show_selected">
+              <property name="text">
+               <string>Show selected</string>
               </property>
-              <property name="toolTip">
-               <string>Limits the samples shown to samples used by the selected instrument</string>
+              <property name="checked">
+               <bool>true</bool>
               </property>
-              <property name="sizeAdjustPolicy">
-               <enum>QComboBox::AdjustToContents</enum>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="chk_show_pinned">
+              <property name="text">
+               <string>Show pinned</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>

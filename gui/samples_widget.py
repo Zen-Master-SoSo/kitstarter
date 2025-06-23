@@ -21,6 +21,7 @@ FEATURE_BOTH = 3
 SNAP_RANGE = 5
 TRACK_HEIGHT = 28
 TRACK_WIDTH = 224
+LABEL_WIDTH = 200
 UPDATES_DEBOUNCE = 680
 
 Overlap = namedtuple('Overlap', ['lovel', 'hivel', 't1', 't2'])
@@ -422,6 +423,7 @@ class SamplesWidget(QWidget):
 		tracks_left_layout.addLayout(self.path_labels)
 		self.sample_count_label = QLabel('[No samples]', self)
 		self.sample_count_label.setFixedHeight(TRACK_HEIGHT)
+		self.sample_count_label.setMinimumWidth(LABEL_WIDTH)
 		self.sample_count_label.setFont(self.button_font)
 		self.sample_count_label.setEnabled(False)
 		tracks_left_layout.addWidget(self.sample_count_label)

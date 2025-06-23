@@ -5,6 +5,7 @@
 import os, logging, platform, subprocess, tempfile
 from os.path import join, dirname, basename, abspath, splitext
 from functools import lru_cache
+from collections import namedtuple
 
 from PyQt5 import 			uic
 from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPoint, QDir, QItemSelection, QTimer
@@ -22,13 +23,16 @@ from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
 from kitstarter import	settings, PACKAGE_DIR, KEY_FILES_ROOT, KEY_FILES_CURRENT
 from kitstarter.starter_kits import StarterKit
+from kitstarter.samplesdb import SamplesDatabase
 from kitstarter.gui import GeometrySaver
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
+
+SampleEntry = namedtuple('Sample', ['path', 'pitch', 'sfz_path', 'soundfile'])
 
 FILE_FILTERS = ['*.ogg', '*.wav', '*.flac', '*.sfz']
 SAMPLE_EXTENSIONS = ['.ogg', '.wav', '.flac']
 SYNTH_NAME = 'liquidsfz'
-MESSAGE_TIMEOUT = 2500
+MESSAGE_TIMEOUT = 3000
 
 
 class MainWindow(QMainWindow, GeometrySaver):
@@ -49,7 +53,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.icon_incomplete = QIcon(os.path.join(PACKAGE_DIR, 'res', 'inst-incomplete.svg'))
 		self.icon_sample_okay = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
 		self.icon_sample_mismatch = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
-		self.kit = StarterKit()
+		self.icon_sample_pinned = QIcon(os.path.join(PACKAGE_DIR, 'res', 'pin.svg'))
 		# Setup JackConnectionManager
 		self.conn_man = JackConnectionManager()
 		self.conn_man.on_error(self.jack_error)
@@ -57,7 +61,9 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.conn_man.on_shutdown(self.jack_shutdown)
 		self.conn_man.on_client_registration(self.jack_client_registration)
 		self.conn_man.on_port_registration(self.jack_port_registration)
-		# Setup filname, tempfile, synth, audio player
+		# Setup kit, sfz_filename, tempfile, synth, audio player, pindb
+		self.kit = StarterKit()
+		self.pindb = SamplesDatabase()
 		self.sfz_filename = None
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
@@ -70,14 +76,14 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.files_model = QFileSystemModel()
 		self.files_model.setRootPath(root_path)
 		self.files_model.setNameFilters(FILE_FILTERS)
-		self.tree_sfz_files.setModel(self.files_model)
-		self.tree_sfz_files.hideColumn(1)
-		self.tree_sfz_files.hideColumn(2)
-		self.tree_sfz_files.hideColumn(3)
-		self.tree_sfz_files.setRootIndex(self.files_model.index(root_path))
+		self.tree_files.setModel(self.files_model)
+		self.tree_files.hideColumn(1)
+		self.tree_files.hideColumn(2)
+		self.tree_files.hideColumn(3)
+		self.tree_files.setRootIndex(self.files_model.index(root_path))
 		index = self.files_model.index(current_path)
-		self.tree_sfz_files.setCurrentIndex(index)
-		self.tree_sfz_files.scrollTo(index, QAbstractItemView.PositionAtBottom)
+		self.tree_files.setCurrentIndex(index)
+		self.tree_files.scrollTo(index, QAbstractItemView.PositionAtBottom)
 		# Setup instrument list
 		for pitch in iter_pitch_by_group():
 			list_item = QListWidgetItem(self.lst_instruments)
@@ -104,10 +110,13 @@ class MainWindow(QMainWindow, GeometrySaver):
 		# Connect signals
 		self.sig_ports_complete.connect(self.slot_ports_complete)
 		self.lst_instruments.currentRowChanged.connect(self.stk_samples_widgets.setCurrentIndex)
-		self.tree_sfz_files.selectionModel().selectionChanged.connect(self.slot_files_selection_changed)
-		self.tree_sfz_files.setContextMenuPolicy(Qt.CustomContextMenu)
-		self.tree_sfz_files.customContextMenuRequested.connect(self.slot_files_context_menu)
-		self.cmb_sfz_instrument.currentIndexChanged.connect(self.slot_sfz_inst_curr_changed)
+		self.lst_instruments.currentRowChanged.connect(self.slot_instrument_changed)
+		self.tree_files.selectionModel().selectionChanged.connect(self.slot_files_selection_changed)
+		self.tree_files.setContextMenuPolicy(Qt.CustomContextMenu)
+		self.tree_files.customContextMenuRequested.connect(self.slot_files_context_menu)
+		self.chk_filter_instrument.stateChanged.connect(self.slot_filter_checked)
+		self.chk_show_pinned.stateChanged.connect(self.slot_show_pinned_checked)
+		self.chk_show_selected.stateChanged.connect(self.slot_show_selected_checked)
 		self.lst_samples.itemPressed.connect(self.slot_sample_pressed)
 		self.lst_samples.mouseReleaseEvent = self.samples_mouse_release
 		self.lst_samples.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -127,8 +136,8 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def layout_complete(self):
 		self.synth.start()
 		self.audio_player = JackAudioPlayer()
-		index = self.tree_sfz_files.currentIndex()
-		self.tree_sfz_files.scrollTo(index, QAbstractItemView.PositionAtTop)
+		index = self.tree_files.currentIndex()
+		self.tree_files.scrollTo(index, QAbstractItemView.PositionAtTop)
 		self.slot_files_selection_changed()
 
 	def closeEvent(self, _):
@@ -296,82 +305,98 @@ class MainWindow(QMainWindow, GeometrySaver):
 	# -----------------------------------------------------------------
 	# SFZ / samples files management
 
+	@pyqtSlot(int)
+	def slot_instrument_changed(self, index):
+		self.chk_filter_instrument.setText('Filter "{}"'.format(
+			self.lst_instruments.currentItem().text()))
+		if self.chk_filter_instrument.isChecked():
+			self.update_samples()
+
 	@pyqtSlot(QItemSelection, QItemSelection)
 	def slot_files_selection_changed(self, *_):
-		path = self.files_model.filePath(self.tree_sfz_files.currentIndex())
+		path = self.files_model.filePath(self.tree_files.currentIndex())
 		settings().setValue(KEY_FILES_CURRENT, path)
-		self.filter_instruments_combo()
 		self.update_samples()
 
 	@pyqtSlot(int)
-	def slot_sfz_inst_curr_changed(self, _):
+	def slot_show_pinned_checked(self, _):
 		self.update_samples()
 
-	def filter_instruments_combo(self):
-		prev_text = self.cmb_sfz_instrument.currentText()
-		with SigBlock(self.cmb_sfz_instrument):
-			self.cmb_sfz_instrument.clear()
-			self.lbl_sfz_inst_heading.setEnabled(False)
-			for index in self.tree_sfz_files.selectedIndexes():
-				path = self.files_model.filePath(index)
-				ext = splitext(path)[-1]
-				if not self.files_model.isDir(index) and ext == '.sfz':
-					for inst in self.drumkit(path).instruments():
-						if self.cmb_sfz_instrument.findData(inst.pitch) == -1:
-							self.cmb_sfz_instrument.addItem(inst.name, inst.pitch)
-			if bool(self.cmb_sfz_instrument.count()):
-				self.cmb_sfz_instrument.insertItem(0, '[all]', 0)
-				self.lbl_sfz_inst_heading.setEnabled(True)
-		if self.cmb_sfz_instrument.findText(prev_text, Qt.MatchExactly) > -1:
-			self.cmb_sfz_instrument.setCurrentText(prev_text)
-		else:
-			self.cmb_sfz_instrument.setCurrentIndex(0)
+	@pyqtSlot(int)
+	def slot_show_selected_checked(self, state):
+		self.tree_files.setEnabled(state)
+		self.update_samples()
+
+	@pyqtSlot(int)
+	def slot_filter_checked(self, _):
+		self.update_samples()
 
 	def update_samples(self):
 		QApplication.setOverrideCursor(Qt.WaitCursor)
 		self.lst_samples.clear()
-		pitch = self.cmb_sfz_instrument.currentData() or 0
-		for index in self.tree_sfz_files.selectedIndexes():
-			if not self.files_model.isDir(index):
-				path = abspath(self.files_model.filePath(index))
-				ext = splitext(path)[-1]
-				if ext == '.sfz':
-					if pitch > 0:
-						try:
-							self.append_sfz_samples(self.drumkit(path).instrument(pitch))
-						except KeyError:
-							logging.warning('Drumkit "%s" has no instrument pitch %d',
-								self.drumkit(path).name, pitch)
-					else:
-						for instrument in self.drumkit(path).instruments():
-							self.append_sfz_samples(instrument)
-				elif ext in SAMPLE_EXTENSIONS:
-					self.lst_samples_append(path)
+		filter_samples = self.chk_filter_instrument.isChecked()
+		pitch = self.current_inst_pitch() if filter_samples else None
+		if self.chk_show_pinned.isChecked():
+			pinned = self.pindb.pinned_by_pitch(pitch) \
+				if filter_samples \
+				else self.pindb.all_pinned()
+			for row in pinned:
+				self.append_sample(*row)
+		if self.chk_show_selected.isChecked():
+			for index in self.tree_files.selectedIndexes():
+				if not self.files_model.isDir(index):
+					path = self.files_model.filePath(index)
+					ext = splitext(path)[-1]
+					if ext == '.sfz':
+						drumkit = self.drumkit(path)
+						if filter_samples:
+							try:
+								self.append_instrument_samples(drumkit.instrument(pitch), pitch, path)
+							except KeyError:
+								self.statusbar.showMessage(
+									f'Drumkit "{drumkit.name}" has no instrument pitch {pitch}',
+									MESSAGE_TIMEOUT)
+						else:
+							for instrument in self.drumkit(path).instruments():
+								self.append_instrument_samples(instrument, pitch, path)
+					elif not filter_samples and ext in SAMPLE_EXTENSIONS:
+						self.append_sample(path, pitch, None)
 		QApplication.restoreOverrideCursor()
 
-	def append_sfz_samples(self, instrument):
+	def append_instrument_samples(self, instrument, pitch, sfz_path):
 		for sample in instrument.samples():
-			existing_items = self.lst_samples.findItems(sample.basename, Qt.MatchExactly)
-			if len(existing_items) \
-				and any(existing_item.data(Qt.UserRole).name == sample.abspath \
-				for existing_item in existing_items):
-				continue
-			self.lst_samples_append(sample.abspath)
+			self.append_sample(sample.abspath, pitch, sfz_path)
 
-	def lst_samples_append(self, path):
-		soundfile = self.soundfile(path)
-		sfz_inst_item = QListWidgetItem(self.lst_samples)
-		sfz_inst_item.setText(basename(path))
-		sfz_inst_item.setData(Qt.UserRole, soundfile)
-		s_samp = path + \
-			f'\nThis file has a sample rate of {soundfile.samplerate} Hz,\n'
-		if soundfile.samplerate != self.audio_player.client.samplerate:
-			sfz_inst_item.setIcon(self.icon_sample_mismatch)
-			sfz_inst_item.setToolTip(s_samp + \
-				f'while the JACK server is running at {self.audio_player.client.samplerate} Hz')
+	def append_sample(self, path, pitch, sfz_path):
+		if self.sample_item_by_path(path):
+			return
+		list_item = QListWidgetItem(self.lst_samples)
+		list_item.setText(basename(path))
+		list_item.setData(Qt.UserRole, SampleEntry(
+			path, pitch, sfz_path,
+			self.soundfile(path)))
+		if self.pindb.is_pinned(path):
+			list_item.setIcon(self.icon_sample_pinned)
 		else:
-			sfz_inst_item.setIcon(self.icon_sample_okay)
-			sfz_inst_item.setToolTip(s_samp + 'the same as the JACK server')
+			self.set_unpinned_icon(list_item)
+
+	def set_unpinned_icon(self, list_item):
+		entry = list_item.data(Qt.UserRole)
+		s_samp = entry.path + \
+			f'\nThis file has a sample rate of {entry.soundfile.samplerate} Hz,\n'
+		if entry.soundfile.samplerate != self.conn_man.samplerate:
+			list_item.setIcon(self.icon_sample_mismatch)
+			list_item.setToolTip(s_samp + \
+				f'while the JACK server is running at {self.conn_man.samplerate} Hz')
+		else:
+			list_item.setIcon(self.icon_sample_okay)
+			list_item.setToolTip(s_samp + 'the same as the JACK server')
+
+	def sample_item_by_path(self, path):
+		for item in self.lst_samples.findItems(basename(path), Qt.MatchExactly):
+			if item.data(Qt.UserRole).path == path:
+				return item
+		return None
 
 	# -----------------------------------------------------------------
 	# Context menus
@@ -379,9 +404,9 @@ class MainWindow(QMainWindow, GeometrySaver):
 	@pyqtSlot(QPoint)
 	def slot_files_context_menu(self, position):
 		"""
-		Display context menu for self.tree_sfz_files
+		Display context menu for self.tree_files
 		"""
-		indexes = self.tree_sfz_files.selectedIndexes()
+		indexes = self.tree_files.selectedIndexes()
 		if len(indexes):
 			menu = QMenu(self)
 			paths = [ self.files_model.filePath(index) for index in indexes ]
@@ -409,7 +434,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 				action = QAction('Open in external program ...')
 				action.triggered.connect(open_file)
 				menu.addAction(action)
-			menu.exec(self.tree_sfz_files.mapToGlobal(position))
+			menu.exec(self.tree_files.mapToGlobal(position))
 
 	@pyqtSlot(QPoint)
 	def slot_samples_context_menu(self, position):
@@ -417,27 +442,52 @@ class MainWindow(QMainWindow, GeometrySaver):
 		Display context menu for self.lst_samples
 		"""
 		menu = QMenu(self)
-		items = self.lst_samples.selectedItems()
-		if len(items) < self.lst_samples.count():
+		entries = [ item.data(Qt.UserRole) for item in self.lst_samples.selectedItems() ]
+		pinned = [ self.pindb.is_pinned(entry.path) for entry in entries ]
+		pitch = self.current_inst_pitch()
+
+		if len(entries):
+
+			def pin():
+				for entry in entries:
+					self.pindb.pin(entry.path, entry.pitch, entry.sfz_path)
+					self.sample_item_by_path(entry.path).setIcon(self.icon_sample_pinned)
+			if not all(pinned):
+				action = QAction('Pin', self)
+				action.triggered.connect(pin)
+				menu.addAction(action)
+
+			def unpin():
+				for entry in entries:
+					self.pindb.unpin(entry.path)
+					self.set_unpinned_icon(self.sample_item_by_path(entry.path))
+			if any(pinned):
+				action = QAction('Unpin', self)
+				action.triggered.connect(unpin)
+				menu.addAction(action)
+
+			def use_samples():
+				for entry in entries:
+					self.stk_samples_widgets.currentWidget().append(entry.path)
+			title = 'these samples' if len(entries) > 1 else f'"{basename(entries[0].path)}"'
+			action = QAction(f'Use {title} for "{MIDI_DRUM_NAMES[pitch]}"', self)
+			action.triggered.connect(use_samples)
+			menu.addAction(action)
+
+			def copy_paths():
+				QApplication.instance().clipboard().setText(
+					"\n".join(entry.path for entry in entries))
+			action = QAction('Copy path(s) to clipboard', self)
+			action.triggered.connect(copy_paths)
+			menu.addAction(action)
+
+		if len(entries) < self.lst_samples.count():
 			def select_all():
 				self.lst_samples.selectAll()
 			action = QAction('Select all', self)
 			action.triggered.connect(select_all)
 			menu.addAction(action)
-		if len(items):
-			def copy_paths():
-				QApplication.instance().clipboard().setText("\n".join(
-					item.data(Qt.UserRole).name for item in items))
-			action = QAction('Copy path(s) to clipboard', self)
-			action.triggered.connect(copy_paths)
-			menu.addAction(action)
-		pitch = self.current_inst_pitch()
-		def use_samples():
-			for item in items:
-				self.stk_samples_widgets.currentWidget().append(item.data(Qt.UserRole).name)
-		action = QAction(f'Use sample(s) for "{MIDI_DRUM_NAMES[pitch]}"', self)
-		action.triggered.connect(use_samples)
-		menu.addAction(action)
+
 		menu.exec(self.lst_samples.mapToGlobal(position))
 
 	# -----------------------------------------------------------------
@@ -445,7 +495,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	@pyqtSlot(QListWidgetItem)
 	def slot_sample_pressed(self, list_item):
-		soundfile = list_item.data(Qt.UserRole)
+		soundfile = list_item.data(Qt.UserRole).soundfile
 		soundfile.seek(0)
 		self.audio_player.play_python_soundfile(soundfile)
 
