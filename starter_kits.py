@@ -85,6 +85,7 @@ class StarterSample:
 
 	lovel = None
 	hivel = None
+	volume = None
 	vtpoints = []
 
 	def __init__(self, path, pitch):
@@ -97,6 +98,8 @@ class StarterSample:
 	def write(self, stream):
 		stream.write('<region>\n')
 		stream.write(f'sample={self.path}\n')
+		if self.volume != 0.0:
+			stream.write(f'volume={self.volume:.2f}\n')
 		if self.lovel > 0:
 			stream.write(f'lovel={self.lovel}\n')
 		if self.hivel < 127:

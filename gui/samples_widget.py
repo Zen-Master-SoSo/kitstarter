@@ -2,16 +2,18 @@
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
+from os.path import join
 import logging
 from functools import partial
 from itertools import combinations
 from collections import namedtuple
 
-from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QTimer
-from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush
-from PyQt5.QtWidgets import	QWidget, QVBoxLayout, QHBoxLayout, \
-							QCheckBox, QPushButton, QLabel, QSizePolicy
+from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
+from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
+from PyQt5.QtWidgets import	QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, \
+							QCheckBox, QPushButton, QLabel, QDoubleSpinBox, QFrame
 
+from kitstarter import PACKAGE_DIR
 from qt_extras.list_layout import VListLayout
 
 
@@ -41,7 +43,8 @@ def init_paint_resources():
 		logging.warning('Already initialized')
 	init_paint_resources.initialized = True
 	for cls in _Track.__subclasses__():
-		cls.init_paint_resources()
+		if hasattr(cls, 'init_paint_resources'):
+			cls.init_paint_resources()
 
 
 class _Track(QWidget):
@@ -52,7 +55,6 @@ class _Track(QWidget):
 	def __init__(self, parent):
 		super().__init__(parent)
 		self.setFixedHeight(TRACK_HEIGHT)
-		self.setFixedWidth(TRACK_WIDTH)
 		self.v2x_scale = None
 
 	def resizeEvent(self, _):
@@ -116,6 +118,7 @@ class SampleTrack(_Track):
 
 	def __init__(self, parent, sample):
 		super().__init__(parent)
+		self.setFixedWidth(TRACK_WIDTH)
 		self.sample = sample
 		self.sample.lovel = 0
 		self.sample.hivel = 127
@@ -217,22 +220,6 @@ class SampleTrack(_Track):
 		self.sample.hivel = value
 		self.update()
 
-	def snap_tracks_lo(self, other_tracks):
-		"""
-		Snap other tracks hivel when this track's lovel changes.
-		"""
-		for other_track in other_tracks:
-			if abs(self.lovel - other_track.hivel) <= SNAP_RANGE:
-				other_track.hivel = self.lovel
-
-	def snap_tracks_hi(self, other_tracks):
-		"""
-		Snap other tracks lovel when this track's hivel changes.
-		"""
-		for other_track in other_tracks:
-			if abs(self.hivel - other_track.lovel) <= SNAP_RANGE:
-				other_track.lovel = self.hivel
-
 	def overlap(self, other_track):
 		"""
 		Used to determine if this track overlaps abother track.
@@ -272,6 +259,75 @@ class SampleTrack(_Track):
 			else:
 				self.sample.vtpoints.append(Velcurve(self.hivel, self.v2a(self.hivel)))
 		self.update()
+
+
+class ButtonsTrack(QFrame, _Track):
+
+	sig_volume_changed = pyqtSignal()
+	sig_move_up = pyqtSignal()
+	sig_move_down = pyqtSignal()
+	sig_delete = pyqtSignal()
+
+	@classmethod
+	def init_paint_resources(cls):
+		cls.icon_up_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-enabled.svg'))
+		cls.icon_down_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-enabled.svg'))
+		cls.icon_up_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-disabled.svg'))
+		cls.icon_down_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-disabled.svg'))
+		cls.icon_delete = QIcon(join(PACKAGE_DIR, 'res', 'delete.svg'))
+		cls.icon_size = QSize(14, 14)
+
+	def __init__(self, parent, sample):
+		super().__init__(parent)
+		self.sample = sample
+		self.sample.volume = 0.0
+		lo = QHBoxLayout()
+		lo.setSpacing(0)
+		lo.setContentsMargins(0,0,0,0)
+		lbl = QLabel('Volume:', self)
+		lbl.setMargin(4)
+		lo.addWidget(lbl)
+		self.spinbox = QDoubleSpinBox(self)
+		self.spinbox.setMaximumWidth(72)
+		self.spinbox.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+		self.spinbox.setRange(-144, 6)
+		self.spinbox.setValue(0)
+		self.spinbox.setSingleStep(0.25)
+		self.spinbox.valueChanged.connect(self.slot_value_changed)
+		lo.addWidget(self.spinbox)
+		self.up_button = QPushButton(self)
+		self.up_button.setIcon(self.icon_up_enabled)
+		self.up_button.setIconSize(self.icon_size)
+		self.up_button.clicked.connect(self.slot_button_up_click)
+		lo.addWidget(self.up_button)
+		self.down_button = QPushButton(self)
+		self.down_button.setIcon(self.icon_down_enabled)
+		self.down_button.setIconSize(self.icon_size)
+		self.down_button.clicked.connect(self.slot_button_down_click)
+		lo.addWidget(self.down_button)
+		delete_button = QPushButton(self)
+		delete_button.setIcon(self.icon_delete)
+		delete_button.setIconSize(self.icon_size)
+		delete_button.clicked.connect(self.slot_button_delete_click)
+		lo.addWidget(delete_button)
+		self.setLayout(lo)
+
+	@pyqtSlot(float)
+	def slot_value_changed(self, value):
+		self.sample.volume = value
+		self.sig_volume_changed.emit()
+
+	@pyqtSlot()
+	def slot_button_up_click(self):
+		self.sig_move_up.emit()
+
+	@pyqtSlot()
+	def slot_button_down_click(self):
+		self.sig_move_down.emit()
+
+	@pyqtSlot()
+	def slot_button_delete_click(self):
+		self.sig_delete.emit()
 
 
 class Scale(_Track):
@@ -392,57 +448,50 @@ class SamplesWidget(QWidget):
 		main_layout.setContentsMargins(8,4,8,4) # left, top, right, bottom
 		main_layout.setSpacing(8)
 
-		tracks_layout = QHBoxLayout()
-		tracks_left_layout = QVBoxLayout()
-		tracks_center_layout = QVBoxLayout()
-		tracks_right_layout = QVBoxLayout()
-		options_layout = QHBoxLayout()
-
-		tracks_left_layout.setSpacing(0)
-		tracks_center_layout.setSpacing(0)
-		tracks_right_layout.setSpacing(0)
-
-		tracks_layout.addLayout(tracks_left_layout)
-		tracks_layout.addLayout(tracks_center_layout)
-		tracks_layout.addLayout(tracks_right_layout)
-		tracks_layout.addStretch()
-
 		title_label = QLabel(self.instrument.name)
 		title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 		title_label.setObjectName('title')
-
 		main_layout.addWidget(title_label)
-		main_layout.addLayout(tracks_layout)
-		main_layout.addStretch()
-		main_layout.addLayout(options_layout)
 
+		tracks_labels_layout = QVBoxLayout()
+		tracks_labels_layout.setSpacing(0)
 		self.path_labels = VListLayout()
 		self.path_labels.setSpacing(0)
 		self.path_labels.setContentsMargins(0,0,0,0)
-		tracks_left_layout.insertSpacing(-1, TRACK_HEIGHT)
-		tracks_left_layout.addLayout(self.path_labels)
 		self.sample_count_label = QLabel('[No samples]', self)
 		self.sample_count_label.setFixedHeight(TRACK_HEIGHT)
 		self.sample_count_label.setMinimumWidth(LABEL_WIDTH)
 		self.sample_count_label.setFont(self.button_font)
 		self.sample_count_label.setEnabled(False)
-		tracks_left_layout.addWidget(self.sample_count_label)
+		tracks_labels_layout.insertSpacing(-1, TRACK_HEIGHT)
+		tracks_labels_layout.addLayout(self.path_labels)
+		tracks_labels_layout.addWidget(self.sample_count_label)
 
+		tracks_velo_layout = QVBoxLayout()
+		tracks_velo_layout.setSpacing(0)
 		self.tracks = VListLayout()
 		self.tracks.setSpacing(0)
 		self.tracks.setContentsMargins(0,0,0,0)
 		self.tracks.sig_size_changed.connect(self.slot_track_len_changed)
-		self.pad = Pad(self)
-		tracks_center_layout.addWidget(Scale(self))
-		tracks_center_layout.addLayout(self.tracks)
-		tracks_center_layout.addWidget(self.pad)
+		pad = Pad(self)
+		tracks_velo_layout.addWidget(Scale(self))
+		tracks_velo_layout.addLayout(self.tracks)
+		tracks_velo_layout.addWidget(pad)
 
-		self.remove_buttons = VListLayout()
-		self.remove_buttons.setSpacing(0)
-		self.remove_buttons.setContentsMargins(0,0,0,0)
-		tracks_right_layout.insertSpacing(-1, TRACK_HEIGHT)
-		tracks_right_layout.addLayout(self.remove_buttons)
-		tracks_right_layout.insertSpacing(-1, TRACK_HEIGHT)
+		tracks_buttons_layout = QVBoxLayout()
+		tracks_buttons_layout.setSpacing(0)
+		self.button_tracks = VListLayout()
+		self.button_tracks.setSpacing(0)
+		self.button_tracks.setContentsMargins(0,0,0,0)
+		tracks_buttons_layout.insertSpacing(-1, TRACK_HEIGHT)
+		tracks_buttons_layout.addLayout(self.button_tracks)
+		tracks_buttons_layout.insertSpacing(-1, TRACK_HEIGHT)
+
+		tracks_layout = QHBoxLayout()
+		tracks_layout.addLayout(tracks_labels_layout)
+		tracks_layout.addLayout(tracks_velo_layout)
+		tracks_layout.addLayout(tracks_buttons_layout)
+		tracks_layout.addStretch()
 
 		self.spread_button = QPushButton('Spread')
 		self.spread_button.setFixedHeight(TRACK_HEIGHT - 4)
@@ -457,6 +506,7 @@ class SamplesWidget(QWidget):
 		self.chk_crossfade.setEnabled(False)
 		self.chk_snap.setEnabled(False)
 
+		options_layout = QHBoxLayout()
 		options_layout.setContentsMargins(4, 0, 4, 0)
 		options_layout.setSpacing(4)
 		options_layout.addWidget(self.spread_button)
@@ -465,35 +515,48 @@ class SamplesWidget(QWidget):
 		options_layout.addWidget(self.chk_snap)
 		options_layout.addStretch()
 
+		main_layout.addLayout(tracks_layout)
+		main_layout.addStretch()
+		main_layout.addLayout(options_layout)
+
 		self.setLayout(main_layout)
 
 		self.spread_button.clicked.connect(self.slot_spread)
 		self.chk_crossfade.stateChanged.connect(self.slot_crossfade_state_change)
 		self.chk_snap.stateChanged.connect(self.slot_snap_state_change)
-		self.pad.sig_mouse_press.connect(self.slot_mouse_press)
-		self.pad.sig_mouse_release.connect(self.slot_mouse_release)
+		pad.sig_mouse_press.connect(self.slot_mouse_press)
+		pad.sig_mouse_release.connect(self.slot_mouse_release)
 
 	def clear(self):
 		self.path_labels.clear()
-		self.remove_buttons.clear()
+		self.button_tracks.clear()
 		self.tracks.clear()
 		self.updating()
 
 	def append(self, path):
 		if not self.instrument.has_sample(path):
 			sample = self.instrument.add_sample(path)
+
 			sample_track = SampleTrack(self, sample)
 			sample_track.sig_value_changed.connect(self.slot_value_changed)
 			self.tracks.append(sample_track)
+
 			label = QLabel(sample_track.sample.path, self)
 			label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 			label.setFixedHeight(TRACK_HEIGHT)
 			self.path_labels.append(label)
-			button = QPushButton('Remove')
-			button.setFont(self.button_font)
-			button.setFixedHeight(TRACK_HEIGHT)
-			button.clicked.connect(partial(self.slot_remove_track_clicked, label, sample_track, button))
-			self.remove_buttons.append(button)
+
+			button_track = ButtonsTrack(self, sample)
+			button_track.sig_volume_changed.connect(self.slot_volume_changed)
+			button_track.sig_move_up.connect(partial(self.slot_move_up,
+				label, sample_track, button_track))
+			button_track.sig_move_down.connect(partial(self.slot_move_down,
+				label, sample_track, button_track))
+			button_track.sig_delete.connect(partial(self.slot_delete,
+				label, sample_track, button_track))
+			self.button_tracks.append(button_track)
+
+			self.enab_updown_buttons()
 			self.updating()
 
 	def updating(self):
@@ -511,13 +574,6 @@ class SamplesWidget(QWidget):
 	@pyqtSlot()
 	def slot_mouse_release(self):
 		self.sig_mouse_release.emit(self.instrument.pitch)
-
-	@pyqtSlot(QWidget, QWidget, QWidget)
-	def slot_remove_track_clicked(self, label, sample_track, button):
-		self.instrument.remove_sample(sample_track.sample.path)
-		self.path_labels.remove(label)
-		self.tracks.remove(sample_track)
-		self.remove_buttons.remove(button)
 
 	@pyqtSlot()
 	def slot_track_len_changed(self):
@@ -574,11 +630,54 @@ class SamplesWidget(QWidget):
 		if self.snap:
 			other_tracks = list(set(self.tracks) ^ set([source_track]))
 			if feature == FEATURE_LOVEL:
-				source_track.snap_tracks_lo(other_tracks)
+				for other_track in other_tracks:
+					if abs(source_track.lovel - other_track.hivel) <= SNAP_RANGE:
+						other_track.hivel = source_track.lovel
 			else:
-				source_track.snap_tracks_hi(other_tracks)
+				for other_track in other_tracks:
+					if abs(source_track.hivel - other_track.lovel) <= SNAP_RANGE:
+						other_track.lovel = source_track.hivel
 		elif self.crossfade:
 			self.find_overlaps()
+
+	@pyqtSlot()
+	def slot_volume_changed(self):
+		self.updating()
+
+	@pyqtSlot(QWidget, QWidget, QWidget)
+	def slot_move_up(self, label, sample_track, button_widget):
+		self.path_labels.move_up(label)
+		self.tracks.move_up(sample_track)
+		self.button_tracks.move_up(button_widget)
+		self.enab_updown_buttons()
+
+	@pyqtSlot(QWidget, QWidget, QWidget)
+	def slot_move_down(self, label, sample_track, button_widget):
+		self.path_labels.move_down(label)
+		self.tracks.move_down(sample_track)
+		self.button_tracks.move_down(button_widget)
+		self.enab_updown_buttons()
+
+	@pyqtSlot(QWidget, QWidget, QWidget)
+	def slot_delete(self, label, sample_track, button_widget):
+		logging.debug('slot_delete')
+		self.instrument.remove_sample(sample_track.sample.path)
+		self.path_labels.remove(label)
+		self.tracks.remove(sample_track)
+		self.button_tracks.remove(button_widget)
+		self.enab_updown_buttons()
+
+	def enab_updown_buttons(self):
+		self.button_tracks[0].up_button.setEnabled(False)
+		self.button_tracks[0].up_button.setIcon(ButtonsTrack.icon_up_disabled)
+		for button_track in self.button_tracks[1:]:
+			button_track.up_button.setEnabled(True)
+			button_track.up_button.setIcon(ButtonsTrack.icon_up_enabled)
+		for button_track in self.button_tracks[:-1]:
+			button_track.down_button.setEnabled(True)
+			button_track.down_button.setIcon(ButtonsTrack.icon_down_enabled)
+		self.button_tracks[-1].down_button.setEnabled(False)
+		self.button_tracks[-1].down_button.setIcon(ButtonsTrack.icon_down_disabled)
 
 	def find_overlaps(self):
 		self.clear_overlaps()
