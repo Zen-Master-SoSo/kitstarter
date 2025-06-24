@@ -13,8 +13,11 @@ from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
 from PyQt5.QtWidgets import	QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, \
 							QCheckBox, QPushButton, QLabel, QDoubleSpinBox, QFrame
 
-from kitstarter import PACKAGE_DIR
+from qt_extras import SigBlock
 from qt_extras.list_layout import VListLayout
+
+from kitstarter import PACKAGE_DIR
+from kitstarter.starter_kits import Velcurve
 
 
 FEATURE_LOVEL = 1
@@ -27,7 +30,6 @@ LABEL_WIDTH = 200
 UPDATES_DEBOUNCE = 680
 
 Overlap = namedtuple('Overlap', ['lovel', 'hivel', 't1', 't2'])
-Velcurve = namedtuple('Velcurve', ['velocity', 'amplitude'])
 
 
 def str_feature(feature):
@@ -120,9 +122,6 @@ class SampleTrack(_Track):
 		super().__init__(parent)
 		self.setFixedWidth(TRACK_WIDTH)
 		self.sample = sample
-		self.sample.lovel = 0
-		self.sample.hivel = 127
-		self.sample.vtpoints = []
 		self.overlaps = []
 
 	def __str__(self):
@@ -231,7 +230,7 @@ class SampleTrack(_Track):
 			if lovel < hivel else None
 
 	def update_vtpoints(self):
-		self.sample.vtpoints = []
+		vtpoints = []
 		if self.overlaps:
 			self.overlaps.sort(key = lambda overlap: overlap.lovel)
 			lo_overlap = self.overlaps.pop(0) if self.overlaps[0].lovel == self.lovel else None
@@ -244,20 +243,21 @@ class SampleTrack(_Track):
 			else:
 				mid_overlaps = []
 			if lo_overlap:
-				self.sample.vtpoints.append(Velcurve(self.lovel, 0.0))
-				self.sample.vtpoints.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
+				vtpoints.append(Velcurve(self.lovel, 0.0))
+				vtpoints.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
 			else:
-				self.sample.vtpoints.append(Velcurve(self.lovel, self.v2a(self.lovel)))
+				vtpoints.append(Velcurve(self.lovel, self.v2a(self.lovel)))
 			for mid_overlap in mid_overlaps:
-				self.sample.vtpoints.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
+				vtpoints.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
 				mid_overlap_center = mid_overlap.lovel + round((mid_overlap.hivel -  mid_overlap.lovel) / 2)
-				self.sample.vtpoints.append(Velcurve(mid_overlap_center, 0.0))
-				self.sample.vtpoints.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
+				vtpoints.append(Velcurve(mid_overlap_center, 0.0))
+				vtpoints.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
 			if hi_overlap:
-				self.sample.vtpoints.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
-				self.sample.vtpoints.append(Velcurve(self.hivel, 0.0))
+				vtpoints.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
+				vtpoints.append(Velcurve(self.hivel, 0.0))
 			else:
-				self.sample.vtpoints.append(Velcurve(self.hivel, self.v2a(self.hivel)))
+				vtpoints.append(Velcurve(self.hivel, self.v2a(self.hivel)))
+		self.sample.vtpoints = vtpoints
 		self.update()
 
 
@@ -531,33 +531,41 @@ class SamplesWidget(QWidget):
 		self.path_labels.clear()
 		self.button_tracks.clear()
 		self.tracks.clear()
-		self.updating()
 
-	def append(self, path):
+	def assign_instrument(self, instrument):
+		self.clear()
+		self.instrument = instrument
+		for sample in instrument.samples.values():
+			self.add_sample_track(sample)
+
+	def create_sample(self, path):
 		if not self.instrument.has_sample(path):
-			sample = self.instrument.add_sample(path)
+			self.add_sample_track(self.instrument.add_sample(path))
 
-			sample_track = SampleTrack(self, sample)
-			sample_track.sig_value_changed.connect(self.slot_value_changed)
-			self.tracks.append(sample_track)
+	def add_sample_track(self, sample):
+		sample_track = SampleTrack(self, sample)
+		sample_track.sig_value_changed.connect(self.slot_value_changed)
+		self.tracks.append(sample_track)
 
-			label = QLabel(sample_track.sample.path, self)
-			label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-			label.setFixedHeight(TRACK_HEIGHT)
-			self.path_labels.append(label)
+		label = QLabel(sample_track.sample.path, self)
+		label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+		label.setFixedHeight(TRACK_HEIGHT)
+		self.path_labels.append(label)
 
-			button_track = ButtonsTrack(self, sample)
-			button_track.sig_volume_changed.connect(self.slot_volume_changed)
-			button_track.sig_move_up.connect(partial(self.slot_move_up,
-				label, sample_track, button_track))
-			button_track.sig_move_down.connect(partial(self.slot_move_down,
-				label, sample_track, button_track))
-			button_track.sig_delete.connect(partial(self.slot_delete,
-				label, sample_track, button_track))
-			self.button_tracks.append(button_track)
+		button_track = ButtonsTrack(self, sample)
+		with SigBlock(button_track.spinbox):
+			button_track.spinbox.setValue(sample.volume)
+		button_track.sig_volume_changed.connect(self.slot_volume_changed)
+		button_track.sig_move_up.connect(partial(self.slot_move_up,
+			label, sample_track, button_track))
+		button_track.sig_move_down.connect(partial(self.slot_move_down,
+			label, sample_track, button_track))
+		button_track.sig_delete.connect(partial(self.slot_delete,
+			label, sample_track, button_track))
+		self.button_tracks.append(button_track)
 
-			self.enab_updown_buttons()
-			self.updating()
+		self.enab_updown_buttons()
+		self.updating()
 
 	def updating(self):
 		self.sig_updating.emit()

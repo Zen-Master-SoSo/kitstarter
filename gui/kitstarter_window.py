@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import	QApplication, QMainWindow, QFileDialog, QListWidget,
 							QFileSystemModel, QAbstractItemView, QMenu, QAction, QComboBox, QLabel
 
 import soundfile as sf
+from soundfile import LibsndfileError
 from midi_notes import MIDI_DRUM_NAMES
 from liquiphy import LiquidSFZ
 from jack_connection_manager import JackConnectionManager
@@ -21,7 +22,7 @@ from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
-from kitstarter import	settings, PACKAGE_DIR, KEY_FILES_ROOT, KEY_FILES_CURRENT
+from kitstarter import	settings, PACKAGE_DIR, KEY_RECENT_FOLDER, KEY_FILES_ROOT, KEY_FILES_CURRENT
 from kitstarter.starter_kits import StarterKit
 from kitstarter.samplesdb import SamplesDatabase
 from kitstarter.gui import GeometrySaver
@@ -39,8 +40,11 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	sig_ports_complete = pyqtSignal()
 
-	def __init__(self):
+	def __init__(self, filename):
 		super().__init__()
+		self.sfz_filename = filename
+		self.kit = StarterKit(self.sfz_filename)
+		# Setup GUI
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'kitstarter_window.ui'), self)
 		init_paint_resources()
@@ -54,6 +58,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.icon_sample_okay = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
 		self.icon_sample_mismatch = QIcon(os.path.join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
 		self.icon_sample_pinned = QIcon(os.path.join(PACKAGE_DIR, 'res', 'pin.svg'))
+		self.icon_sample_err = QIcon.fromTheme('dialog-warning')
 		# Setup JackConnectionManager
 		self.conn_man = JackConnectionManager()
 		self.conn_man.on_error(self.jack_error)
@@ -61,16 +66,13 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.conn_man.on_shutdown(self.jack_shutdown)
 		self.conn_man.on_client_registration(self.jack_client_registration)
 		self.conn_man.on_port_registration(self.jack_port_registration)
-		# Setup kit, sfz_filename, tempfile, synth, audio player, pindb
-		self.kit = StarterKit()
+		# Setup tempfile, synth, audio player, pindb
 		self.pindb = SamplesDatabase()
-		self.sfz_filename = None
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
 		self.audio_player = None	# Instantiated after initial paint delay
 		self.current_midi_source = None
 		self.current_audio_sink = None
-		self.left_mouse_button_pressed = False
 		# Startup paths
 		root_path = settings().value(KEY_FILES_ROOT, QDir.homePath())
 		current_path = settings().value(KEY_FILES_CURRENT, QDir.homePath())
@@ -125,6 +127,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.cmb_midi_srcs.currentTextChanged.connect(self.slot_midi_src_changed)
 		self.cmb_audio_sinks.currentTextChanged.connect(self.slot_audio_sink_changed)
 		self.action_new.triggered.connect(self.slot_new)
+		self.action_open.triggered.connect(self.slot_open)
 		self.action_save.triggered.connect(self.slot_save)
 		self.action_save_as.triggered.connect(self.slot_save_as)
 		self.action_exit.triggered.connect(self.close)
@@ -140,6 +143,8 @@ class MainWindow(QMainWindow, GeometrySaver):
 		index = self.tree_files.currentIndex()
 		self.tree_files.scrollTo(index, QAbstractItemView.PositionAtTop)
 		self.slot_files_selection_changed()
+		if self.sfz_filename:
+			self.load_sfz()
 
 	def closeEvent(self, _):
 		self.synth.quit()
@@ -268,9 +273,13 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def drumkit(self, path):
 		return Drumkit(path)
 
-	@lru_cache
+	@lru_cache(maxsize = 200)
 	def soundfile(self, path):
-		return sf.SoundFile(path)
+		try:
+			return sf.SoundFile(path)
+		except LibsndfileError as err:
+			logging.error(err)
+			return None
 
 	# -----------------------------------------------------------------
 	# Menu handlers
@@ -280,6 +289,25 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.kit = StarterKit()
 		for index in range(self.stk_samples_widgets.count()):
 			self.stk_samples_widgets.widget(index).clear()
+
+	@pyqtSlot()
+	def slot_open(self):
+		filename, _ = QFileDialog.getOpenFileName(self,
+			"Open .sfz file",
+			settings().value(KEY_RECENT_FOLDER, ''),
+			".SFZ files (*.sfz)"
+		)
+		if filename != '':
+			self.sfz_filename = abspath(filename)
+			settings().setValue(KEY_RECENT_FOLDER, dirname(self.sfz_filename))
+			self.load_sfz()
+
+	def load_sfz(self):
+		for index in range(self.stk_samples_widgets.count()):
+			widget = self.stk_samples_widgets.widget(index)
+			widget.assign_instrument(self.kit.instrument(widget.instrument.pitch))
+		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
+		self.setWindowTitle(self.sfz_filename)
 
 	@pyqtSlot()
 	def slot_save(self):
@@ -303,6 +331,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		with open(self.sfz_filename, 'w', encoding = 'utf-8') as fob:
 			self.kit.write(fob)
 		self.statusbar.showMessage(f'Saved {self.sfz_filename}', MESSAGE_TIMEOUT)
+		self.setWindowTitle(self.sfz_filename)
 
 	# -----------------------------------------------------------------
 	# SFZ / samples files management
@@ -384,15 +413,19 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	def set_unpinned_icon(self, list_item):
 		entry = list_item.data(Qt.UserRole)
-		s_samp = entry.path + \
-			f'\nThis file has a sample rate of {entry.soundfile.samplerate} Hz,\n'
-		if entry.soundfile.samplerate != self.conn_man.samplerate:
-			list_item.setIcon(self.icon_sample_mismatch)
-			list_item.setToolTip(s_samp + \
-				f'while the JACK server is running at {self.conn_man.samplerate} Hz')
+		if entry.soundfile is None:
+			list_item.setIcon(self.icon_sample_err)
+			list_item.setToolTip('ERROR READING SOUNDFILE')
 		else:
-			list_item.setIcon(self.icon_sample_okay)
-			list_item.setToolTip(s_samp + 'the same as the JACK server')
+			s_samp = entry.path + \
+				f'\nThis file has a sample rate of {entry.soundfile.samplerate} Hz,\n'
+			if entry.soundfile.samplerate != self.conn_man.samplerate:
+				list_item.setIcon(self.icon_sample_mismatch)
+				list_item.setToolTip(s_samp + \
+					f'while the JACK server is running at {self.conn_man.samplerate} Hz')
+			else:
+				list_item.setIcon(self.icon_sample_okay)
+				list_item.setToolTip(s_samp + 'the same as the JACK server')
 
 	def sample_item_by_path(self, path):
 		for item in self.lst_samples.findItems(basename(path), Qt.MatchExactly):
@@ -421,7 +454,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 			if all(splitext(path)[-1] in SAMPLE_EXTENSIONS for path in paths):
 				def use_samples():
 					for path in paths:
-						self.stk_samples_widgets.currentWidget().append(path)
+						self.stk_samples_widgets.currentWidget().create_sample(path)
 				action = QAction(f'Use for "{MIDI_DRUM_NAMES[pitch]}"', self)
 				action.triggered.connect(use_samples)
 				menu.addAction(action)
@@ -470,7 +503,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 			def use_samples():
 				for entry in entries:
-					self.stk_samples_widgets.currentWidget().append(entry.path)
+					self.stk_samples_widgets.currentWidget().create_sample(entry.path)
 			title = 'these samples' if len(entries) > 1 else f'"{basename(entries[0].path)}"'
 			action = QAction(f'Use {title} for "{MIDI_DRUM_NAMES[pitch]}"', self)
 			action.triggered.connect(use_samples)

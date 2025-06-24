@@ -16,8 +16,8 @@ PACKAGE_DIR			= os.path.dirname(__file__)
 DEFAULT_STYLE		= 'system'
 KEY_STYLE			= 'Style'
 KEY_RECENT_FOLDER	= 'RecentProjectFolder'
-KEY_FILES_ROOT		= 'SampleExplorer/Root'
-KEY_FILES_CURRENT	= 'SampleExplorer/Current'
+KEY_FILES_ROOT		= 'FilesRoot'
+KEY_FILES_CURRENT	= 'FilesCurrent'
 
 def settings():
 	if getattr(settings, 'cached_var', None) is None:
@@ -47,6 +47,7 @@ def main():
 	p.epilog = """
 	Write your help text!
 	"""
+	p.add_argument('Filename', type=str, nargs='?', help='.SFZ file to import')
 	p.add_argument("--verbose", "-v", action="store_true", help="Show more detailed debug information")
 	options = p.parse_args()
 	log_level = logging.DEBUG if options.verbose else logging.ERROR
@@ -64,7 +65,7 @@ def main():
 
 	app = QApplication([])
 	try:
-		main_window = MainWindow()
+		main_window = MainWindow(options.Filename or None)
 	except JackConnectError:
 		DevilBox('Could not connect to JACK server. Is it running?')
 		sys.exit(1)

@@ -191,6 +191,7 @@
      <string>&amp;File</string>
     </property>
     <addaction name="action_new"/>
+    <addaction name="action_open"/>
     <addaction name="action_save"/>
     <addaction name="action_save_as"/>
     <addaction name="action_exit"/>
@@ -228,6 +229,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+N</string>
+   </property>
+  </action>
+  <action name="action_open">
+   <property name="text">
+    <string>&amp;Open</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
    </property>
   </action>
  </widget>
