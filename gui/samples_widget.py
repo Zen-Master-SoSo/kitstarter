@@ -24,7 +24,7 @@ FEATURE_LOVEL = 1
 FEATURE_HIVEL = 2
 FEATURE_BOTH = 3
 SNAP_RANGE = 5
-TRACK_HEIGHT = 28
+TRACK_HEIGHT = 32
 TRACK_WIDTH = 224
 LABEL_WIDTH = 200
 UPDATES_DEBOUNCE = 680
@@ -668,7 +668,6 @@ class SamplesWidget(QWidget):
 
 	@pyqtSlot(QWidget, QWidget, QWidget)
 	def slot_delete(self, label, sample_track, button_widget):
-		logging.debug('slot_delete')
 		self.instrument.remove_sample(sample_track.sample.path)
 		self.path_labels.remove(label)
 		self.tracks.remove(sample_track)
@@ -676,16 +675,17 @@ class SamplesWidget(QWidget):
 		self.enab_updown_buttons()
 
 	def enab_updown_buttons(self):
-		self.button_tracks[0].up_button.setEnabled(False)
-		self.button_tracks[0].up_button.setIcon(ButtonsTrack.icon_up_disabled)
-		for button_track in self.button_tracks[1:]:
-			button_track.up_button.setEnabled(True)
-			button_track.up_button.setIcon(ButtonsTrack.icon_up_enabled)
-		for button_track in self.button_tracks[:-1]:
-			button_track.down_button.setEnabled(True)
-			button_track.down_button.setIcon(ButtonsTrack.icon_down_enabled)
-		self.button_tracks[-1].down_button.setEnabled(False)
-		self.button_tracks[-1].down_button.setIcon(ButtonsTrack.icon_down_disabled)
+		if len(self.button_tracks):
+			self.button_tracks[0].up_button.setEnabled(False)
+			self.button_tracks[0].up_button.setIcon(ButtonsTrack.icon_up_disabled)
+			for button_track in self.button_tracks[1:]:
+				button_track.up_button.setEnabled(True)
+				button_track.up_button.setIcon(ButtonsTrack.icon_up_enabled)
+			for button_track in self.button_tracks[:-1]:
+				button_track.down_button.setEnabled(True)
+				button_track.down_button.setIcon(ButtonsTrack.icon_down_enabled)
+			self.button_tracks[-1].down_button.setEnabled(False)
+			self.button_tracks[-1].down_button.setIcon(ButtonsTrack.icon_down_disabled)
 
 	def find_overlaps(self):
 		self.clear_overlaps()
