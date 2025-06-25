@@ -43,7 +43,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def __init__(self, filename):
 		super().__init__()
 		self.sfz_filename = filename
-		self.kit = StarterKit(self.sfz_filename)
+		self.kit = StarterKit()
 		# Setup GUI
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'kitstarter_window.ui'), self)
@@ -282,13 +282,21 @@ class MainWindow(QMainWindow, GeometrySaver):
 			return None
 
 	# -----------------------------------------------------------------
-	# Menu handlers
+	# Load / save / SamplesWidget / StarterKit management:
+
+	def iterate_sample_widgets(self):
+		for index in range(self.stk_samples_widgets.count()):
+			yield self.stk_samples_widgets.widget(index)
+
+	def load_kit(self, kit):
+		self.kit = kit
+		for widget in self.iterate_sample_widgets():
+			instrument = self.kit.instrument(widget.instrument.pitch)
+			widget.assign_instrument(instrument)
 
 	@pyqtSlot()
 	def slot_new(self):
-		self.kit = StarterKit()
-		for index in range(self.stk_samples_widgets.count()):
-			self.stk_samples_widgets.widget(index).clear()
+		self.load_kit(StarterKit())
 
 	@pyqtSlot()
 	def slot_open(self):
@@ -303,9 +311,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 			self.load_sfz()
 
 	def load_sfz(self):
-		for index in range(self.stk_samples_widgets.count()):
-			widget = self.stk_samples_widgets.widget(index)
-			widget.assign_instrument(self.kit.instrument(widget.instrument.pitch))
+		self.load_kit(StarterKit(self.sfz_filename))
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
 		self.setWindowTitle(self.sfz_filename)
 
@@ -322,7 +328,11 @@ class MainWindow(QMainWindow, GeometrySaver):
 		Triggered by "File -> Save bashed kit" menu
 		See also: slot_drumkit_bashed
 		"""
-		filename, _ = QFileDialog.getSaveFileName(self, 'Save as .sfz ...', '', "SFZ (*.sfz)")
+		filename, _ = QFileDialog.getSaveFileName(
+			self,
+			'Save as .sfz ...',
+			'' if self.sfz_filename is None else self.sfz_filename,
+			"SFZ (*.sfz)")
 		if filename:
 			self.sfz_filename = filename
 			self.save()
@@ -334,7 +344,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.setWindowTitle(self.sfz_filename)
 
 	# -----------------------------------------------------------------
-	# SFZ / samples files management
+	# file tree / sample display management
 
 	@pyqtSlot(int)
 	def slot_instrument_changed(self, index):

@@ -280,7 +280,6 @@ class ButtonsTrack(QFrame, _Track):
 	def __init__(self, parent, sample):
 		super().__init__(parent)
 		self.sample = sample
-		self.sample.volume = 0.0
 		lo = QHBoxLayout()
 		lo.setSpacing(0)
 		lo.setContentsMargins(0,0,0,0)
@@ -535,7 +534,7 @@ class SamplesWidget(QWidget):
 	def assign_instrument(self, instrument):
 		self.clear()
 		self.instrument = instrument
-		for sample in instrument.samples.values():
+		for sample in self.instrument.samples.values():
 			self.add_sample_track(sample)
 
 	def create_sample(self, path):

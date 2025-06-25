@@ -11,7 +11,7 @@ from os.path import abspath, basename
 from collections import namedtuple
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_NAMES
 from sfzen import SFZ
-from sfzen.drumkits import pitch_id_tuple, PITCH_GROUPS
+from sfzen.drumkits import Drumkit, PITCH_GROUPS, pitch_id_tuple, iter_pitch_by_group
 
 Velcurve = namedtuple('Velcurve', ['velocity', 'amplitude'])
 
@@ -72,7 +72,8 @@ loop_mode=one_shot
 ampeg_attack=0.001
 
 """)
-		for instrument in self.instruments.values():
+		for pitch in iter_pitch_by_group():
+			instrument = self.instruments[pitch]
 			if len(instrument.samples):
 				instrument.write(stream)
 
