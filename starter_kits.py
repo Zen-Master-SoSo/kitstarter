@@ -41,9 +41,13 @@ class StarterKit:
 							starter_sample._hivel = opcodes['hivel'].value
 						if 'volume' in opcodes:
 							starter_sample._volume = opcodes['volume'].value
+						if 'transpose' in opcodes:
+							starter_sample._transpose = opcodes['transpose'].value
+						if 'tune' in opcodes:
+							starter_sample._tune = opcodes['tune'].value
 						for code, opcode in region.opcodes.items():
 							if code.startswith('amp_velcurve'):
-								starter_sample._vtpoints.append(Velcurve(int(code[13:]), float(opcode.value)))
+								starter_sample._velcurves.append(Velcurve(int(code[13:]), float(opcode.value)))
 						instrument.samples[starter_sample.path] = starter_sample
 
 	def samples(self):
@@ -128,7 +132,9 @@ class StarterSample:
 		self._lovel = 0
 		self._hivel = 127
 		self._volume = 0.0
-		self._vtpoints = []
+		self._transpose = 0.0
+		self._tune = 0.0
+		self._velcurves = []
 		self.dirty = False
 
 	def __str__(self):
@@ -162,12 +168,30 @@ class StarterSample:
 		self.dirty = True
 
 	@property
-	def vtpoints(self):
-		return self._vtpoints
+	def transpose(self):
+		return self._transpose
 
-	@vtpoints.setter
-	def vtpoints(self, value):
-		self._vtpoints = value
+	@transpose.setter
+	def transpose(self, value):
+		self._transpose = value
+		self.dirty = True
+
+	@property
+	def tune(self):
+		return self._tune
+
+	@tune.setter
+	def tune(self, value):
+		self._tune = value
+		self.dirty = True
+
+	@property
+	def velcurves(self):
+		return self._velcurves
+
+	@velcurves.setter
+	def velcurves(self, value):
+		self._velcurves = value
 		self.dirty = True
 
 	def write(self, stream):
@@ -179,8 +203,12 @@ class StarterSample:
 			stream.write(f'lovel={self._lovel}\n')
 		if self._hivel < 127:
 			stream.write(f'hivel={self._hivel}\n')
-		for point in self._vtpoints:
+		for point in self._velcurves:
 			stream.write(f'amp_velcurve_{point.velocity}={point.amplitude:.1f}\n')
+		if self._transpose != 0:
+			stream.write(f'transpose={self._transpose}\n')
+		if self._tune != 0:
+			stream.write(f'tune={self._tune}\n')
 		stream.write("\n")
 
 

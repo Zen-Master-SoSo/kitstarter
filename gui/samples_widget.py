@@ -2,8 +2,9 @@
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
-from os.path import join
 import logging
+from os.path import join, basename
+from math import sqrt
 from functools import partial
 from itertools import combinations
 from collections import namedtuple
@@ -11,7 +12,7 @@ from collections import namedtuple
 from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
 from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
 from PyQt5.QtWidgets import	QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, \
-							QCheckBox, QPushButton, QLabel, QDoubleSpinBox, QFrame
+							QCheckBox, QPushButton, QLabel, QSpinBox, QDoubleSpinBox, QFrame
 
 from qt_extras import SigBlock
 from qt_extras.list_layout import VListLayout
@@ -23,7 +24,8 @@ from kitstarter.starter_kits import Velcurve
 FEATURE_LOVEL = 1
 FEATURE_HIVEL = 2
 FEATURE_BOTH = 3
-SNAP_RANGE = 5
+LINEAR_SNAP_RANGE = 4
+POLAR_SNAP_RANGE = sqrt(pow(LINEAR_SNAP_RANGE, 2) * 2)
 TRACK_HEIGHT = 32
 TRACK_WIDTH = 224
 LABEL_WIDTH = 200
@@ -97,7 +99,6 @@ class _Track(QWidget):
 	def v2y(self, velocity):
 		"""
 		Convert a velocity to a screen y coordinate
-		(Used when there are no scale points - only lovel, hivel)
 		"""
 		return self.a2y(self.v2a(velocity))
 
@@ -107,33 +108,78 @@ class SampleTrack(_Track):
 	Graphically displays the effects of lovel, hivel, and amp_velcurve_N.
 	"""
 
-	sig_value_changed = pyqtSignal(QWidget, int)
+	sig_range_changed = pyqtSignal(QWidget, int)
+	sig_value_changed = pyqtSignal()
 
 	@classmethod
 	def init_paint_resources(cls):
 		cls.outline_pen = QPen(QColor("#AAA"))
 		cls.outline_pen.setWidth(1)
-		cls.envelope_pen = QPen(QColor("#33F"))
+		cls.envelope_pen = QPen(QColor("#7777D4"))
 		cls.envelope_pen.setWidth(1)
-		fill_color = QColor("#DDE")
-		cls.fill_brush = QBrush(fill_color, Qt.SolidPattern)
+		cls.fill_brush = QBrush(QColor("#DDE"), Qt.SolidPattern)
+		cls.velcurve_pen_normal = QPen(QColor("#B670FF"))
+		cls.velcurve_pen_normal.setWidth(3)
+		cls.velcurve_pen_hover = QPen(QColor("#E173FF"))
+		cls.velcurve_pen_hover.setWidth(4)
+		cls.velcurve_pen_grabbed = QPen(QColor("#E14782"))
+		cls.velcurve_pen_grabbed.setWidth(4)
 
 	def __init__(self, parent, sample):
 		super().__init__(parent)
 		self.setFixedWidth(TRACK_WIDTH)
 		self.sample = sample
 		self.overlaps = []
+		self.setMouseTracking(True)
+		self.hover_point_index = None
+		self.hover_point_grabbed = False
 
 	def __str__(self):
 		return f'SampleTrack for "{self.sample}"'
 
-	def mousePressEvent(self, event):
-		self.mouse_event(event)
-
 	def mouseMoveEvent(self, event):
-		self.mouse_event(event)
+		if event.buttons() == Qt.LeftButton:
+			if self.hover_point_index is None:
+				self.mouse_lohivel_event(event)
+			else:
+				self.sample._velcurves[self.hover_point_index] = Velcurve(
+					self.sample._velcurves[self.hover_point_index].velocity \
+						if event.modifiers() & Qt.ControlModifier \
+						else self.x2v(event.x()),
+					self.sample._velcurves[self.hover_point_index].amplitude \
+						if event.modifiers() & Qt.ShiftModifier \
+						else self.y2a(event.y())
+				)
+				self.update()
+		elif event.buttons() == Qt.NoButton and self.sample._velcurves:
+			near_points = [ (
+				sqrt(
+					pow(abs(self.v2x(velcurve.velocity) - event.x()), 2) +
+					pow(abs(self.a2y(velcurve.amplitude) - event.y()), 2)
+				),
+				index
+			) for index, velcurve in enumerate(self.sample._velcurves) ]
+			near_points.sort()
+			hover_point_index = near_points[0][1] if near_points[0][0] < POLAR_SNAP_RANGE else None
+			if hover_point_index != self.hover_point_index:
+				self.hover_point_index = hover_point_index
+				self.update()
 
-	def mouse_event(self, event):
+	def mousePressEvent(self, event):
+		if event.buttons() == Qt.LeftButton:
+			if self.hover_point_index is None:
+				self.mouse_lohivel_event(event)
+			else:
+				self.hover_point_grabbed = True
+				self.update()
+
+	def mouseReleaseEvent(self, event):
+		if self.hover_point_grabbed:
+			self.hover_point_grabbed = False
+			self.sig_value_changed.emit()
+			self.update()
+
+	def mouse_lohivel_event(self, event):
 		velocity = self.x2v(event.x())
 		feature = None
 		if velocity <= self.sample.lovel:
@@ -151,7 +197,7 @@ class SampleTrack(_Track):
 			else:
 				self.sample.hivel = velocity
 				feature = FEATURE_HIVEL
-		self.sig_value_changed.emit(self, feature)
+		self.sig_range_changed.emit(self, feature)
 		self.update()
 
 	def paintEvent(self, _):
@@ -175,9 +221,9 @@ class SampleTrack(_Track):
 			# line across to lovel:
 			points.append(QPointF(self.v2x(self.lovel), self.rect().bottom()))
 
-		if self.sample.vtpoints:
-			for vtp in self.sample.vtpoints:
-				points.append(QPointF(self.v2x(vtp.velocity), self.a2y(vtp.amplitude)))
+		if self.sample._velcurves:
+			for velcurve in self.sample._velcurves:
+				points.append(QPointF(self.v2x(velcurve.velocity), self.a2y(velcurve.amplitude)))
 		else:
 			points.append(QPointF(self.v2x(self.lovel), self.v2y(self.lovel)))
 			points.append(QPointF(self.v2x(self.hivel), self.v2y(self.hivel)))
@@ -198,6 +244,14 @@ class SampleTrack(_Track):
 			else:
 				painter.drawLine(start, end)
 				start = end
+
+		for index, velcurve in enumerate(self.sample._velcurves):
+			if self.hover_point_index == index:
+				painter.setPen(self.velcurve_pen_grabbed \
+					if self.hover_point_grabbed else self.velcurve_pen_hover)
+			else:
+				painter.setPen(self.velcurve_pen_normal)
+			painter.drawPoint(QPointF(self.v2x(velcurve.velocity), self.a2y(velcurve.amplitude)))
 
 		painter.end()
 
@@ -229,8 +283,8 @@ class SampleTrack(_Track):
 		return Overlap(lovel, hivel, self, other_track) \
 			if lovel < hivel else None
 
-	def update_vtpoints(self):
-		vtpoints = []
+	def update_velcurves(self):
+		velcurves = []
 		if self.overlaps:
 			self.overlaps.sort(key = lambda overlap: overlap.lovel)
 			lo_overlap = self.overlaps.pop(0) if self.overlaps[0].lovel == self.lovel else None
@@ -243,27 +297,27 @@ class SampleTrack(_Track):
 			else:
 				mid_overlaps = []
 			if lo_overlap:
-				vtpoints.append(Velcurve(self.lovel, 0.0))
-				vtpoints.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
+				velcurves.append(Velcurve(self.lovel, 0.0))
+				velcurves.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
 			else:
-				vtpoints.append(Velcurve(self.lovel, self.v2a(self.lovel)))
+				velcurves.append(Velcurve(self.lovel, self.v2a(self.lovel)))
 			for mid_overlap in mid_overlaps:
-				vtpoints.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
+				velcurves.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
 				mid_overlap_center = mid_overlap.lovel + round((mid_overlap.hivel -  mid_overlap.lovel) / 2)
-				vtpoints.append(Velcurve(mid_overlap_center, 0.0))
-				vtpoints.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
+				velcurves.append(Velcurve(mid_overlap_center, 0.0))
+				velcurves.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
 			if hi_overlap:
-				vtpoints.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
-				vtpoints.append(Velcurve(self.hivel, 0.0))
+				velcurves.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
+				velcurves.append(Velcurve(self.hivel, 0.0))
 			else:
-				vtpoints.append(Velcurve(self.hivel, self.v2a(self.hivel)))
-		self.sample.vtpoints = vtpoints
+				velcurves.append(Velcurve(self.hivel, self.v2a(self.hivel)))
+		self.sample.velcurves = velcurves
 		self.update()
 
 
 class ButtonsTrack(QFrame, _Track):
 
-	sig_volume_changed = pyqtSignal()
+	sig_value_changed = pyqtSignal()
 	sig_move_up = pyqtSignal()
 	sig_move_down = pyqtSignal()
 	sig_delete = pyqtSignal()
@@ -280,41 +334,81 @@ class ButtonsTrack(QFrame, _Track):
 	def __init__(self, parent, sample):
 		super().__init__(parent)
 		self.sample = sample
+
 		lo = QHBoxLayout()
-		lo.setSpacing(0)
+		lo.setSpacing(11)
 		lo.setContentsMargins(0,0,0,0)
+
+		vollo = QHBoxLayout()
+		vollo.setSpacing(3)
+
 		lbl = QLabel('Volume:', self)
-		lbl.setMargin(4)
-		lo.addWidget(lbl)
-		self.spinbox = QDoubleSpinBox(self)
-		self.spinbox.setMaximumWidth(72)
-		self.spinbox.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
-		self.spinbox.setRange(-144, 6)
-		self.spinbox.setValue(0)
-		self.spinbox.setSingleStep(0.25)
-		self.spinbox.valueChanged.connect(self.slot_value_changed)
-		lo.addWidget(self.spinbox)
+		vollo.addWidget(lbl)
+		self.spin_volume = QDoubleSpinBox(self)
+		self.spin_volume.setMaximumWidth(64)
+		self.spin_volume.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+		self.spin_volume.setRange(-144, 6)
+		self.spin_volume.setValue(0)
+		self.spin_volume.setSingleStep(0.25)
+		self.spin_volume.valueChanged.connect(self.slot_value_changed)
+		vollo.addWidget(self.spin_volume)
+
+		lo.addItem(vollo)
+
+		tunlo = QHBoxLayout()
+		tunlo.setSpacing(3)
+
+		tunlo.addWidget(QLabel('Tune:', self))
+		self.spin_transpose = QSpinBox(self)
+		self.spin_transpose.setMaximumWidth(42)
+		self.spin_transpose.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+		self.spin_transpose.setRange(-11, 11)
+		self.spin_transpose.setValue(0)
+		self.spin_transpose.valueChanged.connect(self.slot_value_changed)
+		tunlo.addWidget(self.spin_transpose)
+		tunlo.addWidget(QLabel('semitone', self))
+
+		self.spin_tune = QSpinBox(self)
+		self.spin_tune.setMaximumWidth(45)
+		self.spin_tune.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+		self.spin_tune.setRange(-100, 100)
+		self.spin_tune.setValue(0)
+		self.spin_tune.valueChanged.connect(self.slot_value_changed)
+		tunlo.addWidget(self.spin_tune)
+		tunlo.addWidget(QLabel('cents', self))
+
+		lo.addItem(tunlo)
+
+		btnlo = QHBoxLayout()
+
 		self.up_button = QPushButton(self)
 		self.up_button.setIcon(self.icon_up_enabled)
 		self.up_button.setIconSize(self.icon_size)
 		self.up_button.clicked.connect(self.slot_button_up_click)
-		lo.addWidget(self.up_button)
+		btnlo.addWidget(self.up_button)
+
 		self.down_button = QPushButton(self)
 		self.down_button.setIcon(self.icon_down_enabled)
 		self.down_button.setIconSize(self.icon_size)
 		self.down_button.clicked.connect(self.slot_button_down_click)
-		lo.addWidget(self.down_button)
+		btnlo.addWidget(self.down_button)
+
 		delete_button = QPushButton(self)
 		delete_button.setIcon(self.icon_delete)
 		delete_button.setIconSize(self.icon_size)
 		delete_button.clicked.connect(self.slot_button_delete_click)
-		lo.addWidget(delete_button)
+		btnlo.addWidget(delete_button)
+
+		lo.addItem(btnlo)
+
 		self.setLayout(lo)
 
-	@pyqtSlot(float)
-	def slot_value_changed(self, value):
-		self.sample.volume = value
-		self.sig_volume_changed.emit()
+	@pyqtSlot()
+	def slot_value_changed(self):
+		self.sample.volume = self.spin_volume.value()
+		self.sample.transpose = self.spin_transpose.value()
+		self.sample.tune = self.spin_tune.value()
+		self.sig_value_changed.emit()
 
 	@pyqtSlot()
 	def slot_button_up_click(self):
@@ -543,18 +637,24 @@ class SamplesWidget(QWidget):
 
 	def add_sample_track(self, sample):
 		sample_track = SampleTrack(self, sample)
+		sample_track.sig_range_changed.connect(self.slot_range_changed)
 		sample_track.sig_value_changed.connect(self.slot_value_changed)
 		self.tracks.append(sample_track)
 
-		label = QLabel(sample_track.sample.path, self)
+		label = QLabel(basename(sample.path), self)
+		label.setToolTip(sample.path)
 		label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 		label.setFixedHeight(TRACK_HEIGHT)
 		self.path_labels.append(label)
 
 		button_track = ButtonsTrack(self, sample)
-		with SigBlock(button_track.spinbox):
-			button_track.spinbox.setValue(sample.volume)
-		button_track.sig_volume_changed.connect(self.slot_volume_changed)
+		with SigBlock(button_track.spin_volume):
+			button_track.spin_volume.setValue(sample.volume)
+		with SigBlock(button_track.spin_transpose):
+			button_track.spin_transpose.setValue(sample.transpose)
+		with SigBlock(button_track.spin_tune):
+			button_track.spin_tune.setValue(sample.tune)
+		button_track.sig_value_changed.connect(self.slot_value_changed)
 		button_track.sig_move_up.connect(partial(self.slot_move_up,
 			label, sample_track, button_track))
 		button_track.sig_move_down.connect(partial(self.slot_move_down,
@@ -564,9 +664,9 @@ class SamplesWidget(QWidget):
 		self.button_tracks.append(button_track)
 
 		self.enab_updown_buttons()
-		self.updating()
+		self.sfz_updated()
 
-	def updating(self):
+	def sfz_updated(self):
 		self.sig_updating.emit()
 		self.update_timer.start()
 
@@ -604,7 +704,7 @@ class SamplesWidget(QWidget):
 			self.find_overlaps()
 		else:
 			self.clear_overlaps()
-		self.updating()
+		self.sfz_updated()
 
 	@pyqtSlot()
 	def slot_spread(self):
@@ -613,7 +713,7 @@ class SamplesWidget(QWidget):
 			self.tracks[i].lovel = round(i * spread)
 			self.tracks[i].hivel = round((i + 1) * spread)
 		self.find_overlaps()
-		self.updating()
+		self.sfz_updated()
 
 	@property
 	def snap(self):
@@ -632,24 +732,24 @@ class SamplesWidget(QWidget):
 		self.chk_crossfade.setChecked(bool(state))
 
 	@pyqtSlot(QWidget, int)
-	def slot_value_changed(self, source_track, feature):
-		self.updating()
+	def slot_range_changed(self, source_track, feature):
+		self.sfz_updated()
 		if self.snap:
 			other_tracks = list(set(self.tracks) ^ set([source_track]))
 			if feature == FEATURE_LOVEL:
 				for other_track in other_tracks:
-					if abs(source_track.lovel - other_track.hivel) <= SNAP_RANGE:
+					if abs(source_track.lovel - other_track.hivel) <= LINEAR_SNAP_RANGE:
 						other_track.hivel = source_track.lovel
 			else:
 				for other_track in other_tracks:
-					if abs(source_track.hivel - other_track.lovel) <= SNAP_RANGE:
+					if abs(source_track.hivel - other_track.lovel) <= LINEAR_SNAP_RANGE:
 						other_track.lovel = source_track.hivel
 		elif self.crossfade:
 			self.find_overlaps()
 
 	@pyqtSlot()
-	def slot_volume_changed(self):
-		self.updating()
+	def slot_value_changed(self):
+		self.sfz_updated()
 
 	@pyqtSlot(QWidget, QWidget, QWidget)
 	def slot_move_up(self, label, sample_track, button_widget):
@@ -694,7 +794,7 @@ class SamplesWidget(QWidget):
 				t[0].overlaps.append(overlap)
 				t[1].overlaps.append(overlap)
 		for sample_track in self.tracks:
-			sample_track.update_vtpoints()
+			sample_track.update_velcurves()
 
 	def clear_overlaps(self):
 		for sample_track in self.tracks:
