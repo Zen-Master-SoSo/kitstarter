@@ -1,4 +1,4 @@
-#  kitstarter/gui/kitstarter_window.py
+#  kitstarter/gui/main_window.py
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.kit = StarterKit()
 		# Setup GUI
 		with ShutUpQT():
-			uic.loadUi(join(dirname(__file__), 'kitstarter_window.ui'), self)
+			uic.loadUi(join(dirname(__file__), 'main_window.ui'), self)
 		init_paint_resources()
 		self.restore_geometry()
 		font = self.lst_instruments.font()
@@ -588,4 +588,4 @@ class JackLiquidSFZ(LiquidSFZ):
 		super().__init__(filename, defer_start = True)
 
 
-#  end kitstarter/gui/kitstarter_window.py
+#  end kitstarter/gui/main_window.py

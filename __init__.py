@@ -41,7 +41,7 @@ def set_application_style():
 		pass
 
 def main():
-	from kitstarter.gui.kitstarter_window import MainWindow
+	from kitstarter.gui.main_window import MainWindow
 
 	p = argparse.ArgumentParser()
 	p.epilog = """
