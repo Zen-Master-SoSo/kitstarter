@@ -266,6 +266,11 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def current_inst_pitch(self):
 		return self.stk_samples_widgets.currentWidget().instrument.pitch
 
+	def update_instrument_list(self):
+		for list_item in self.iter_instrument_list():
+			instrument = self.kit.instrument(list_item.data(Qt.UserRole))
+			list_item.setIcon(self.icon_complete if len(instrument.samples) else self.icon_incomplete)
+
 	# -----------------------------------------------------------------
 	# Cached objects
 
@@ -288,15 +293,10 @@ class MainWindow(QMainWindow, GeometrySaver):
 		for index in range(self.stk_samples_widgets.count()):
 			yield self.stk_samples_widgets.widget(index)
 
-	def load_kit(self, kit):
-		self.kit = kit
-		for widget in self.iterate_sample_widgets():
-			instrument = self.kit.instrument(widget.instrument.pitch)
-			widget.assign_instrument(instrument)
-
 	@pyqtSlot()
 	def slot_new(self):
-		self.load_kit(StarterKit())
+		for widget in self.iterate_sample_widgets():
+			widget.clear()
 
 	@pyqtSlot()
 	def slot_open(self):
@@ -311,7 +311,10 @@ class MainWindow(QMainWindow, GeometrySaver):
 			self.load_sfz()
 
 	def load_sfz(self):
-		self.load_kit(StarterKit(self.sfz_filename))
+		self.kit = StarterKit(self.sfz_filename)
+		for widget in self.iterate_sample_widgets():
+			widget.load_instrument(self.kit.instrument(widget.instrument.pitch))
+		self.update_instrument_list()
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
 		self.setWindowTitle(self.sfz_filename)
 
@@ -382,7 +385,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 				if filter_samples \
 				else self.pindb.all_pinned()
 			for row in pinned:
-				self.append_sample(*row)
+				self.lst_add_sample(*row)
 		if self.chk_show_selected.isChecked():
 			for index in self.tree_files.selectedIndexes():
 				if not self.files_model.isDir(index):
@@ -392,23 +395,23 @@ class MainWindow(QMainWindow, GeometrySaver):
 						drumkit = self.drumkit(path)
 						if filter_samples:
 							try:
-								self.append_instrument_samples(drumkit.instrument(pitch), pitch, path)
+								self.lst_add_instrument_samples(drumkit.instrument(pitch), pitch, path)
 							except KeyError:
 								self.statusbar.showMessage(
 									f'Drumkit "{drumkit.name}" has no instrument pitch {pitch}',
 									MESSAGE_TIMEOUT)
 						else:
 							for instrument in self.drumkit(path).instruments():
-								self.append_instrument_samples(instrument, pitch, path)
+								self.lst_add_instrument_samples(instrument, pitch, path)
 					elif not filter_samples and ext in SAMPLE_EXTENSIONS:
-						self.append_sample(path, pitch, None)
+						self.lst_add_sample(path, pitch, None)
 		QApplication.restoreOverrideCursor()
 
-	def append_instrument_samples(self, instrument, pitch, sfz_path):
+	def lst_add_instrument_samples(self, instrument, pitch, sfz_path):
 		for sample in instrument.samples():
-			self.append_sample(sample.abspath, pitch, sfz_path)
+			self.lst_add_sample(sample.abspath, pitch, sfz_path)
 
-	def append_sample(self, path, pitch, sfz_path):
+	def lst_add_sample(self, path, pitch, sfz_path):
 		if self.sample_item_by_path(path):
 			return
 		list_item = QListWidgetItem(self.lst_samples)
@@ -464,7 +467,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 			if all(splitext(path)[-1] in SAMPLE_EXTENSIONS for path in paths):
 				def use_samples():
 					for path in paths:
-						self.stk_samples_widgets.currentWidget().create_sample(path)
+						self.stk_samples_widgets.currentWidget().add_sample(path)
 				action = QAction(f'Use for "{MIDI_DRUM_NAMES[pitch]}"', self)
 				action.triggered.connect(use_samples)
 				menu.addAction(action)
@@ -513,7 +516,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 			def use_samples():
 				for entry in entries:
-					self.stk_samples_widgets.currentWidget().create_sample(entry.path)
+					self.stk_samples_widgets.currentWidget().add_sample(entry.path)
 			title = 'these samples' if len(entries) > 1 else f'"{basename(entries[0].path)}"'
 			action = QAction(f'Use {title} for "{MIDI_DRUM_NAMES[pitch]}"', self)
 			action.triggered.connect(use_samples)
@@ -563,9 +566,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 	@pyqtSlot()
 	def slot_updating(self):
 		self.statusbar.showMessage('Preparing to update ...')
-		for list_item in self.iter_instrument_list():
-			instrument = self.kit.instrument(list_item.data(Qt.UserRole))
-			list_item.setIcon(self.icon_complete if len(instrument.samples) else self.icon_incomplete)
+		self.update_instrument_list()
 
 	@pyqtSlot()
 	def slot_updated(self):

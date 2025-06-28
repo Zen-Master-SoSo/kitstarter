@@ -405,6 +405,7 @@ class ButtonsTrack(QFrame, _Track):
 
 	@pyqtSlot()
 	def slot_value_changed(self):
+		logging.debug('slot_value_changed')
 		self.sample.volume = self.spin_volume.value()
 		self.sample.transpose = self.spin_transpose.value()
 		self.sample.tune = self.spin_tune.value()
@@ -565,7 +566,7 @@ class SamplesWidget(QWidget):
 		self.tracks = VListLayout()
 		self.tracks.setSpacing(0)
 		self.tracks.setContentsMargins(0,0,0,0)
-		self.tracks.sig_size_changed.connect(self.slot_track_len_changed)
+		self.tracks.sig_len_changed.connect(self.slot_track_len_changed)
 		pad = Pad(self)
 		tracks_velo_layout.addWidget(Scale(self))
 		tracks_velo_layout.addLayout(self.tracks)
@@ -625,17 +626,22 @@ class SamplesWidget(QWidget):
 		self.button_tracks.clear()
 		self.tracks.clear()
 
-	def assign_instrument(self, instrument):
+	def load_instrument(self, instrument):
 		self.clear()
 		self.instrument = instrument
 		for sample in self.instrument.samples.values():
-			self.add_sample_track(sample)
+			self._add_sample(sample)
+		self.enab_updown_buttons()
 
-	def create_sample(self, path):
-		if not self.instrument.has_sample(path):
-			self.add_sample_track(self.instrument.add_sample(path))
+	def add_sample(self, path):
+		if path in self.instrument.samples:
+			logging.debug('%s already in %s samples', path, self.instrument.name)
+			return
+		self._add_sample(self.instrument.add_sample(path))
+		self.enab_updown_buttons()
+		self.sfz_updated()
 
-	def add_sample_track(self, sample):
+	def _add_sample(self, sample):
 		sample_track = SampleTrack(self, sample)
 		sample_track.sig_range_changed.connect(self.slot_range_changed)
 		sample_track.sig_value_changed.connect(self.slot_value_changed)
@@ -648,11 +654,13 @@ class SamplesWidget(QWidget):
 		self.path_labels.append(label)
 
 		button_track = ButtonsTrack(self, sample)
-		with SigBlock(button_track.spin_volume):
+		with SigBlock(
+			button_track.spin_volume,
+			button_track.spin_transpose,
+			button_track.spin_tune
+		):
 			button_track.spin_volume.setValue(sample.volume)
-		with SigBlock(button_track.spin_transpose):
 			button_track.spin_transpose.setValue(sample.transpose)
-		with SigBlock(button_track.spin_tune):
 			button_track.spin_tune.setValue(sample.tune)
 		button_track.sig_value_changed.connect(self.slot_value_changed)
 		button_track.sig_move_up.connect(partial(self.slot_move_up,
@@ -663,8 +671,6 @@ class SamplesWidget(QWidget):
 			label, sample_track, button_track))
 		self.button_tracks.append(button_track)
 
-		self.enab_updown_buttons()
-		self.sfz_updated()
 
 	def sfz_updated(self):
 		self.sig_updating.emit()

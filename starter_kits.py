@@ -97,9 +97,6 @@ class StarterInstrument:
 	def __str__(self):
 		return self.name
 
-	def has_sample(self, path):
-		return abspath(path) in self.samples
-
 	def add_sample(self, path):
 		path = abspath(path)
 		if path in self.samples:
@@ -132,8 +129,8 @@ class StarterSample:
 		self._lovel = 0
 		self._hivel = 127
 		self._volume = 0.0
-		self._transpose = 0.0
-		self._tune = 0.0
+		self._transpose = 0
+		self._tune = 0
 		self._velcurves = []
 		self.dirty = False
 

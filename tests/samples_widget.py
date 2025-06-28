@@ -38,14 +38,14 @@ class TestWindow(QDialog):
 		])
 		lo.addWidget(self.tracks_widget)
 		self.add_button = QPushButton('Add sample')
-		self.add_button.clicked.connect(self.slot_add_sample)
+		self.add_button.clicked.connect(self.slot_add_btn_clicked)
 		lo.addWidget(self.add_button)
 		self.setLayout(lo)
 
 	@pyqtSlot()
-	def slot_add_sample(self):
+	def slot_add_btn_clicked(self):
 		try:
-			self.tracks_widget.create_sample(next(self.samples))
+			self.tracks_widget.add_sample(next(self.samples))
 		except StopIteration:
 			self.add_button.setEnabled(False)
 
