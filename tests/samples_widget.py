@@ -64,7 +64,6 @@ class TestWindow(QDialog):
 
 if __name__ == "__main__":
 	logging.basicConfig(
-		stream = sys.stdout,
 		level = logging.DEBUG,
 		format = "[%(filename)24s:%(lineno)-4d] %(levelname)-8s %(message)s"
 	)
