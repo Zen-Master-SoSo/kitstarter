@@ -315,6 +315,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		for widget in self.iterate_sample_widgets():
 			widget.load_instrument(self.kit.instrument(widget.instrument.pitch))
 		self.update_instrument_list()
+		self.synth_load_kit()
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
 		self.setWindowTitle(self.sfz_filename)
 
@@ -570,11 +571,13 @@ class MainWindow(QMainWindow, GeometrySaver):
 
 	@pyqtSlot()
 	def slot_updated(self):
+		self.synth_load_kit()
+		self.statusbar.showMessage('Updated', MESSAGE_TIMEOUT)
+
+	def synth_load_kit(self):
 		with open(self.tempfile, 'w', encoding = 'utf-8') as fob:
 			self.kit.write(fob)
 		self.synth.load(self.tempfile)
-		self.statusbar.showMessage('Updated', MESSAGE_TIMEOUT)
-
 
 class JackLiquidSFZ(LiquidSFZ):
 	"""
