@@ -1,4 +1,4 @@
-#  kitstarter/samplesdb.py
+#  kitstarter/pindb.py
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
@@ -8,7 +8,7 @@ from sqlite3 import connect
 from appdirs import user_config_dir
 
 
-class SamplesDatabase():
+class PinDatabase():
 
 	instance = None		# Enforce singleton
 	conn = None
@@ -145,4 +145,4 @@ class SamplesDatabase():
 		self.conn.commit()
 
 
-#  end kitstarter/samplesdb.py
+#  end kitstarter/pindb.py

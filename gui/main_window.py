@@ -22,9 +22,10 @@ from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
-from kitstarter import	settings, PACKAGE_DIR, KEY_RECENT_FOLDER, KEY_FILES_ROOT, KEY_FILES_CURRENT
+from kitstarter import	settings, APPLICATION_NAME, PACKAGE_DIR, KEY_RECENT_FOLDER, \
+	KEY_FILES_ROOT, KEY_FILES_CURRENT
 from kitstarter.starter_kits import StarterKit
-from kitstarter.samplesdb import SamplesDatabase
+from kitstarter.pindb import PinDatabase
 from kitstarter.gui import GeometrySaver
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
 
@@ -67,7 +68,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.conn_man.on_client_registration(self.jack_client_registration)
 		self.conn_man.on_port_registration(self.jack_port_registration)
 		# Setup tempfile, synth, audio player, pindb
-		self.pindb = SamplesDatabase()
+		self.pindb = PinDatabase()
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
 		self.audio_player = None	# Instantiated after initial paint delay
@@ -145,6 +146,13 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.slot_files_selection_changed()
 		if self.sfz_filename:
 			self.load_sfz()
+
+	def update_window_title(self):
+		title = APPLICATION_NAME if self.sfz_filename is None \
+			else f'{self.sfz_filename} - {APPLICATION_NAME}'
+		if self.kit.is_dirty():
+			title = '*' + title
+		self.setWindowTitle(title)
 
 	def closeEvent(self, _):
 		self.synth.quit()
@@ -317,7 +325,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.update_instrument_list()
 		self.synth_load_kit()
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
-		self.setWindowTitle(self.sfz_filename)
+		self.update_window_title()
 
 	@pyqtSlot()
 	def slot_save(self):
@@ -345,7 +353,8 @@ class MainWindow(QMainWindow, GeometrySaver):
 		with open(self.sfz_filename, 'w', encoding = 'utf-8') as fob:
 			self.kit.write(fob)
 		self.statusbar.showMessage(f'Saved {self.sfz_filename}', MESSAGE_TIMEOUT)
-		self.setWindowTitle(self.sfz_filename)
+		self.kit.clear_dirty()
+		self.update_window_title()
 
 	# -----------------------------------------------------------------
 	# file tree / sample display management
@@ -355,28 +364,28 @@ class MainWindow(QMainWindow, GeometrySaver):
 		self.chk_filter_instrument.setText('Filter "{}"'.format(
 			self.lst_instruments.currentItem().text()))
 		if self.chk_filter_instrument.isChecked():
-			self.update_samples()
+			self.update_samples_list()
 
 	@pyqtSlot(QItemSelection, QItemSelection)
 	def slot_files_selection_changed(self, *_):
 		path = self.files_model.filePath(self.tree_files.currentIndex())
 		settings().setValue(KEY_FILES_CURRENT, path)
-		self.update_samples()
+		self.update_samples_list()
 
 	@pyqtSlot(int)
 	def slot_show_pinned_checked(self, _):
-		self.update_samples()
+		self.update_samples_list()
 
 	@pyqtSlot(int)
 	def slot_show_selected_checked(self, state):
 		self.tree_files.setEnabled(state)
-		self.update_samples()
+		self.update_samples_list()
 
 	@pyqtSlot(int)
 	def slot_filter_checked(self, _):
-		self.update_samples()
+		self.update_samples_list()
 
-	def update_samples(self):
+	def update_samples_list(self):
 		QApplication.setOverrideCursor(Qt.WaitCursor)
 		self.lst_samples.clear()
 		filter_samples = self.chk_filter_instrument.isChecked()
@@ -385,6 +394,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 			pinned = self.pindb.pinned_by_pitch(pitch) \
 				if filter_samples \
 				else self.pindb.all_pinned()
+			pinned.sort(key = lambda row: basename(row[0]))
 			for row in pinned:
 				self.lst_add_sample(*row)
 		if self.chk_show_selected.isChecked():
@@ -546,8 +556,9 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def slot_sample_pressed(self, list_item):
 		if QApplication.mouseButtons() == Qt.LeftButton:
 			soundfile = list_item.data(Qt.UserRole).soundfile
-			soundfile.seek(0)
-			self.audio_player.play_python_soundfile(soundfile)
+			if soundfile:
+				soundfile.seek(0)
+				self.audio_player.play_python_soundfile(soundfile)
 
 	def samples_mouse_release(self, event):
 		self.audio_player.stop()
@@ -568,6 +579,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 	def slot_updating(self):
 		self.statusbar.showMessage('Preparing to update ...')
 		self.update_instrument_list()
+		self.update_window_title()
 
 	@pyqtSlot()
 	def slot_updated(self):

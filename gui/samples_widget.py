@@ -12,7 +12,8 @@ from collections import namedtuple
 from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
 from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
 from PyQt5.QtWidgets import	QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, \
-							QCheckBox, QPushButton, QLabel, QSpinBox, QDoubleSpinBox, QFrame
+							QCheckBox, QPushButton, QLabel, QSpinBox, QDoubleSpinBox, \
+							QSlider, QFrame
 
 from qt_extras import SigBlock
 from qt_extras.list_layout import VListLayout
@@ -28,7 +29,7 @@ LINEAR_SNAP_RANGE = 4
 POLAR_SNAP_RANGE = sqrt(pow(LINEAR_SNAP_RANGE, 2) * 2)
 TRACK_HEIGHT = 32
 TRACK_WIDTH = 224
-LABEL_WIDTH = 200
+LABEL_WIDTH = 180
 UPDATES_DEBOUNCE = 680
 
 Overlap = namedtuple('Overlap', ['lovel', 'hivel', 't1', 't2'])
@@ -342,7 +343,7 @@ class ButtonsTrack(QFrame, _Track):
 		vollo = QHBoxLayout()
 		vollo.setSpacing(3)
 
-		lbl = QLabel('Volume:', self)
+		lbl = QLabel('Vol:', self)
 		vollo.addWidget(lbl)
 		self.spin_volume = QDoubleSpinBox(self)
 		self.spin_volume.setMaximumWidth(64)
@@ -366,7 +367,7 @@ class ButtonsTrack(QFrame, _Track):
 		self.spin_transpose.setValue(0)
 		self.spin_transpose.valueChanged.connect(self.slot_value_changed)
 		tunlo.addWidget(self.spin_transpose)
-		tunlo.addWidget(QLabel('semitone', self))
+		tunlo.addWidget(QLabel('semi,', self))
 
 		self.spin_tune = QSpinBox(self)
 		self.spin_tune.setMaximumWidth(45)
@@ -375,7 +376,7 @@ class ButtonsTrack(QFrame, _Track):
 		self.spin_tune.setValue(0)
 		self.spin_tune.valueChanged.connect(self.slot_value_changed)
 		tunlo.addWidget(self.spin_tune)
-		tunlo.addWidget(QLabel('cents', self))
+		tunlo.addWidget(QLabel('cent', self))
 
 		lo.addItem(tunlo)
 
@@ -590,14 +591,23 @@ class SamplesWidget(QWidget):
 		self.spread_button.setFixedHeight(TRACK_HEIGHT - 4)
 		self.chk_crossfade = QCheckBox('Cross fade', self)
 		self.chk_snap = QCheckBox('Snap', self)
+		lbl_pan = QLabel('Pan:', self)
+		self.sld_pan = QSlider(self)
+		self.sld_pan.setOrientation(Qt.Horizontal)
+		self.sld_pan.setMinimum(-100)
+		self.sld_pan.setMaximum(100)
+		self.sld_pan.setTickInterval(50)
+		self.sld_pan.setTickPosition(QSlider.TicksBelow)
 
 		self.spread_button.setFont(self.button_font)
 		self.chk_crossfade.setFont(self.button_font)
 		self.chk_snap.setFont(self.button_font)
+		lbl_pan.setFont(self.button_font)
 
 		self.spread_button.setEnabled(False)
 		self.chk_crossfade.setEnabled(False)
 		self.chk_snap.setEnabled(False)
+		self.sld_pan.setEnabled(False)
 
 		options_layout = QHBoxLayout()
 		options_layout.setContentsMargins(4, 0, 4, 0)
@@ -606,6 +616,9 @@ class SamplesWidget(QWidget):
 		options_layout.addSpacing(4)
 		options_layout.addWidget(self.chk_crossfade)
 		options_layout.addWidget(self.chk_snap)
+		options_layout.addSpacing(4)
+		options_layout.addWidget(lbl_pan)
+		options_layout.addWidget(self.sld_pan)
 		options_layout.addStretch()
 
 		main_layout.addLayout(tracks_layout)
@@ -617,6 +630,7 @@ class SamplesWidget(QWidget):
 		self.spread_button.clicked.connect(self.slot_spread)
 		self.chk_crossfade.stateChanged.connect(self.slot_crossfade_state_change)
 		self.chk_snap.stateChanged.connect(self.slot_snap_state_change)
+		self.sld_pan.valueChanged.connect(self.slot_pan_changed)
 		pad.sig_mouse_press.connect(self.slot_mouse_press)
 		pad.sig_mouse_release.connect(self.slot_mouse_release)
 
@@ -628,6 +642,8 @@ class SamplesWidget(QWidget):
 	def load_instrument(self, instrument):
 		self.clear()
 		self.instrument = instrument
+		with SigBlock(self.sld_pan):
+			self.sld_pan.setValue(self.instrument.pan)
 		for sample in self.instrument.samples.values():
 			self._add_sample(sample)
 		self.enab_updown_buttons()
@@ -670,7 +686,6 @@ class SamplesWidget(QWidget):
 			label, sample_track, button_track))
 		self.button_tracks.append(button_track)
 
-
 	def sfz_updated(self):
 		self.sig_updating.emit()
 		self.update_timer.start()
@@ -709,6 +724,10 @@ class SamplesWidget(QWidget):
 			self.find_overlaps()
 		else:
 			self.clear_overlaps()
+
+	@pyqtSlot(int)
+	def slot_pan_changed(self, value):
+		self.instrument.pan = value
 		self.sfz_updated()
 
 	@pyqtSlot()
@@ -779,7 +798,8 @@ class SamplesWidget(QWidget):
 		self.enab_updown_buttons()
 
 	def enab_updown_buttons(self):
-		if len(self.button_tracks):
+		self.sld_pan.setEnabled(bool(self.button_tracks))
+		if bool(self.button_tracks):
 			self.button_tracks[0].up_button.setEnabled(False)
 			self.button_tracks[0].up_button.setIcon(ButtonsTrack.icon_up_disabled)
 			for button_track in self.button_tracks[1:]:

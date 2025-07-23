@@ -1,10 +1,10 @@
-#  kitstarter/tests/samplesdb.py
+#  kitstarter/tests/pindb.py
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
 import os, sys, logging, tempfile
 from pprint import pprint
-from kitstarter.samplesdb import SamplesDatabase
+from kitstarter.pindb import PinDatabase
 
 if __name__ == "__main__":
 	logging.basicConfig(
@@ -13,7 +13,7 @@ if __name__ == "__main__":
 	)
 
 	_, tempfile = tempfile.mkstemp(suffix='.db')
-	db = SamplesDatabase(tempfile)
+	db = PinDatabase(tempfile)
 	home = '/home/user'
 	path = f'{home}/sfzs/samples/side_stick.wav'
 	pitch = 37
@@ -32,4 +32,4 @@ if __name__ == "__main__":
 	sys.exit(0)
 
 
-#  end kitstarter/tests/samplesdb.py
+#  end kitstarter/tests/pindb.py

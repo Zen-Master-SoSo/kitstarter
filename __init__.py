@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import QApplication
 from qt_extras import DevilBox
 from jack_connection_manager import JackConnectError
 
-APPLICATION_NAME	= "kitstarter"
+APPLICATION_NAME	= "KitStarter"
 PACKAGE_DIR			= os.path.dirname(__file__)
 DEFAULT_STYLE		= 'system'
 KEY_STYLE			= 'Style'

@@ -31,7 +31,10 @@ class StarterKit:
 		if self.filename:
 			sfz = SFZ(self.filename)
 			for pitch, instrument in self.instruments.items():
-				for region in sfz.regions_for(key=pitch, lokey=pitch, hikey=pitch):
+				for region in sfz.regions_for(key = pitch, lokey = pitch, hikey = pitch):
+					opcodes = region.inherited_opcodes()
+					if 'pan' in opcodes:
+						instrument._pan = opcodes['pan'].value
 					for region_sample in region.samples():
 						starter_sample = StarterSample(region_sample.abspath, pitch)
 						opcodes = region_sample.parent.inherited_opcodes()
@@ -55,11 +58,11 @@ class StarterKit:
 			yield from instrument.samples.values()
 
 	def is_dirty(self):
-		return any(sample.dirty for sample in self.samples())
+		return any(instrument.is_dirty() for instrument in self.instruments.values())
 
 	def clear_dirty(self):
-		for sample in self.samples():
-			sample.dirty = False
+		for instrument in self.instruments.values():
+			instrument.clear_dirty()
 
 	def instrument(self, pitch_or_id):
 		"""
@@ -93,6 +96,8 @@ class StarterInstrument:
 		self.name = MIDI_DRUM_NAMES[pitch]
 		self.note_name = Note(pitch).name
 		self.samples = {}
+		self._pan = 0
+		self._dirty = False
 
 	def __str__(self):
 		return self.name
@@ -109,12 +114,32 @@ class StarterInstrument:
 			raise IndexError(f'Cannot remove "{path}" - not found in samples')
 		del self.samples[path]
 
+	@property
+	def pan(self):
+		return self._pan
+
+	@pan.setter
+	def pan(self, value):
+		self._pan = value
+		self._dirty = True
+
+	def is_dirty(self):
+		return self._dirty or \
+			any(sample.dirty for sample in self.samples.values())
+
+	def clear_dirty(self):
+		self._dirty = False
+		for sample in self.samples.values():
+			sample.dirty = False
+
 	def write(self, stream):
 		stream.write(f'// "{self.name}" ({self.note_name})\n')
 		stream.write(f'<group>\nkey={self.pitch}\n')
 		if PITCH_GROUPS[self.pitch] == 'high_hats':
-			stream.write(f'group=88\n')
-			stream.write(f'off_by=88\n')
+			stream.write('group=88\n')
+			stream.write('off_by=88\n')
+		if self._pan != 0:
+			stream.write(f'pan={self._pan}\n')
 		stream.write("\n")
 		for sample in self.samples.values():
 			sample.write(stream)
