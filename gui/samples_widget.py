@@ -405,7 +405,6 @@ class ButtonsTrack(QFrame, _Track):
 
 	@pyqtSlot()
 	def slot_value_changed(self):
-		logging.debug('slot_value_changed')
 		self.sample.volume = self.spin_volume.value()
 		self.sample.transpose = self.spin_transpose.value()
 		self.sample.tune = self.spin_tune.value()
@@ -635,7 +634,7 @@ class SamplesWidget(QWidget):
 
 	def add_sample(self, path):
 		if path in self.instrument.samples:
-			logging.debug('%s already in %s samples', path, self.instrument.name)
+			logging.warning('%s already in %s samples', path, self.instrument.name)
 			return
 		self._add_sample(self.instrument.add_sample(path))
 		self.enab_updown_buttons()
