@@ -17,7 +17,7 @@ import soundfile as sf
 from soundfile import LibsndfileError
 from midi_notes import MIDI_DRUM_NAMES
 from liquiphy import LiquidSFZ
-from jack_connection_manager import JackConnectionManager
+from conn_jack import JackConnectionManager
 from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
