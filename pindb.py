@@ -24,7 +24,7 @@ class PinDatabase():
 			os.mkdir(os.path.join(user_config_dir(), 'ZenSoSo'))
 		except FileExistsError:
 			pass
-		return os.path.join(user_config_dir(), 'ZenSoSo', 'KitstarterFaves.db')
+		return os.path.join(user_config_dir(), 'ZenSoSo', 'kitstarter-favorites.db')
 
 	@classmethod
 	def remove_file(cls):

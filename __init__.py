@@ -6,6 +6,7 @@
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
 import sys, os, argparse, logging, json, glob
+from functools import cache
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication
 from qt_extras import DevilBox
@@ -19,18 +20,16 @@ KEY_RECENT_FOLDER	= 'RecentProjectFolder'
 KEY_FILES_ROOT		= 'FilesRoot'
 KEY_FILES_CURRENT	= 'FilesCurrent'
 
+@cache
 def settings():
-	if getattr(settings, 'cached_var', None) is None:
-		settings.cached_var = QSettings("ZenSoSo", APPLICATION_NAME)
-	return settings.cached_var
+	return QSettings('ZenSoSo', 'kitstarter')
 
+@cache
 def styles():
-	if getattr(styles, 'cached_var', None) is None:
-		styles.cached_var = {
-			os.path.splitext(os.path.basename(path))[0] : path \
-			for path in glob.glob(os.path.join(PACKAGE_DIR, 'styles', '*.css'))
-		}
-	return styles.cached_var
+	return = {
+		os.path.splitext(os.path.basename(path))[0] : path \
+		for path in glob.glob(os.path.join(PACKAGE_DIR, 'styles', '*.css'))
+	}
 
 def set_application_style():
 	style = settings().value(KEY_STYLE, DEFAULT_STYLE)
