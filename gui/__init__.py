@@ -1,6 +1,6 @@
 #  kitstarter/gui/__init__.py
 #
-#  Copyright 2025 liyang <liyang@veronica>
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 import logging
 from PyQt5.QtWidgets import QSplitter

@@ -1,6 +1,6 @@
 #  kitstarter/pindb.py
 #
-#  Copyright 2025 liyang <liyang@veronica>
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 import os, logging, re
 from operator import attrgetter

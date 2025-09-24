@@ -1,6 +1,6 @@
 #  kitstarter/__init__.py
 #
-#  Copyright 2025 liyang <liyang@veronica>
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 """
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.

@@ -1,6 +1,6 @@
 #  kitstarter/tests/pindb.py
 #
-#  Copyright 2025 liyang <liyang@veronica>
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 import os, sys, logging, tempfile
 from pprint import pprint

@@ -1,6 +1,6 @@
 #  kitstarter/gui/samples_widget.py
 #
-#  Copyright 2025 liyang <liyang@veronica>
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 """
 Test the SamplesWidget using a window.
