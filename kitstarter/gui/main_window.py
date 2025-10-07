@@ -22,11 +22,11 @@ from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
-from kitstarter import	settings, APPLICATION_NAME, PACKAGE_DIR, KEY_RECENT_FOLDER, \
-	KEY_FILES_ROOT, KEY_FILES_CURRENT
+from kitstarter import	settings, xdg_open, \
+						APPLICATION_NAME, PACKAGE_DIR, KEY_RECENT_FOLDER, \
+						KEY_FILES_ROOT, KEY_FILES_CURRENT
 from kitstarter.starter_kits import StarterKit
 from kitstarter.pindb import PinDatabase
-from kitstarter.gui import GeometrySaver
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
 
 SampleEntry = namedtuple('Sample', ['path', 'pitch', 'sfz_path', 'soundfile'])
@@ -37,7 +37,7 @@ SYNTH_NAME = 'liquidsfz'
 MESSAGE_TIMEOUT = 3000
 
 
-class MainWindow(QMainWindow, GeometrySaver):
+class MainWindow(QMainWindow):
 
 	sig_ports_complete = pyqtSignal()
 
@@ -483,12 +483,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 				action.triggered.connect(use_samples)
 				menu.addAction(action)
 			def open_file():
-				if platform.system() == "Windows":
-					os.startfile(paths[0])
-				elif platform.system() == "Darwin":
-					subprocess.Popen(["open", paths[0]])
-				else:
-					subprocess.Popen(["xdg-open", paths[0]])
+				xdg_open(paths[0])
 			if len(indexes) == 1:
 				action = QAction('Open in external program ...')
 				action.triggered.connect(open_file)
@@ -590,6 +585,7 @@ class MainWindow(QMainWindow, GeometrySaver):
 		with open(self.tempfile, 'w', encoding = 'utf-8') as fob:
 			self.kit.write(fob)
 		self.synth.load(self.tempfile)
+
 
 class JackLiquidSFZ(LiquidSFZ):
 	"""

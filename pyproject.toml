@@ -1,0 +1,40 @@
+[project]
+name = "kitstarter"
+authors = [{name = "Leon Dionne", email = "ldionne@dridesign.sh.cn"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"]
+dynamic = ["version", "description"]
+dependencies = [
+	"PyQt5",
+	"soso_qt_extras >= 1.4.0",
+	"conn_jack",
+	"midi_notes",
+	"sfzen >= 1.2.0",
+	"liquiphy",
+	"soundfile",
+	"jack_audio_player"
+]
+
+[project.urls]
+Home = "https://github.com/Zen-Master-SoSo/kitstarter"
+
+[project.scripts]
+kitstarter = "kitstarter.__init__:main"
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[bumpver]
+current_version = "0.0.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "Bump version {old_version} -> {new_version}"
+commit = true
+tag = false
+push = false
+
+[bumpver.file_patterns]
+"kitstarter/__init__.py" = [
+    '^__version__ = "{version}"$',
+]

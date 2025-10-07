@@ -11,9 +11,12 @@ try:
 except ImportError:
 	from functools import lru_cache as cache
 from PyQt5.QtCore import QSettings
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
 from conn_jack import JackConnectError
+
+__version__ = "0.0.0"
+
 
 APPLICATION_NAME	= "KitStarter"
 PACKAGE_DIR			= os.path.dirname(__file__)
@@ -27,9 +30,10 @@ KEY_FILES_CURRENT	= 'FilesCurrent'
 def settings():
 	return QSettings('ZenSoSo', 'kitstarter')
 
+
 @cache
 def styles():
-	return = {
+	return {
 		os.path.splitext(os.path.basename(path))[0] : path \
 		for path in glob.glob(os.path.join(PACKAGE_DIR, 'styles', '*.css'))
 	}
@@ -41,6 +45,61 @@ def set_application_style():
 			QApplication.instance().setStyleSheet(cssfile.read())
 	except KeyError:
 		pass
+
+# -------------------------------------------------------------------
+# Cross-platform open any file / folder with system associated tool
+
+def xdg_open(filename):
+	if system() == "Windows":
+		startfile(filename)
+	elif system() == "Darwin":
+		Popen(["open", filename])
+	else:
+		Popen(["xdg-open", filename])
+
+
+# -------------------------------------------------------------------
+# Add save / restore geometry methods to the QWidget class:
+
+def _restore_geometry(widget):
+	"""
+	Restores geometry from musecbox settings using automatically generated key.
+	"""
+	if not hasattr(widget, 'restoreGeometry'):
+		return
+	geometry = settings().value(_geometry_key(widget))
+	if not geometry is None:
+		widget.restoreGeometry(geometry)
+	for splitter in widget.findChildren(QSplitter):
+		geometry = settings().value(_splitter_geometry_key(widget, splitter))
+		if not geometry is None:
+			splitter.restoreState(geometry)
+
+def _save_geometry(widget):
+	"""
+	Saves geometry to musecbox settings using automatically generated key.
+	"""
+	if not hasattr(widget, 'saveGeometry'):
+		return
+	settings().setValue(_geometry_key(widget), widget.saveGeometry())
+	for splitter in widget.findChildren(QSplitter):
+		settings().setValue(_splitter_geometry_key(widget, splitter), splitter.saveState())
+
+def _geometry_key(widget):
+	"""
+	Automatic QSettings key generated from class name.
+	"""
+	return f'{type(widget).__name__}/geometry'
+
+def _splitter_geometry_key(widget, splitter):
+	"""
+	Automatic QSettings key generated from class name.
+	"""
+	return f'{type(widget).__name__}/{splitter.objectName()}/geometry'
+
+QWidget.restore_geometry = _restore_geometry
+QWidget.save_geometry = _save_geometry
+
 
 def main():
 	from kitstarter.gui.main_window import MainWindow
@@ -73,6 +132,7 @@ def main():
 		sys.exit(1)
 	main_window.show()
 	sys.exit(app.exec())
+
 
 if __name__ == "__main__":
 	sys.exit(main())
