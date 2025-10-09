@@ -6,6 +6,7 @@ import os, logging, platform, subprocess, tempfile
 from os.path import join, dirname, basename, abspath, splitext
 from functools import lru_cache
 from collections import namedtuple
+from itertools import chain
 
 from PyQt5 import 			uic
 from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPoint, QDir, QItemSelection, QTimer
@@ -17,7 +18,7 @@ import soundfile as sf
 from soundfile import LibsndfileError
 from midi_notes import MIDI_DRUM_NAMES
 from liquiphy import LiquidSFZ
-from conn_jack import JackConnectionManager
+from conn_jack import JackConnectionManager, JACK_PORT_IS_INPUT
 from jack_audio_player import JackAudioPlayer
 from qt_extras import SigBlock, ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
@@ -39,12 +40,15 @@ MESSAGE_TIMEOUT = 3000
 
 class MainWindow(QMainWindow):
 
-	sig_ports_complete = pyqtSignal()
+	sig_ports_complete = pyqtSignal()	# \
+	sig_sources_changed = pyqtSignal()	#  Used to decouple JackConnectionManager callbacks
+	sig_sinks_changed = pyqtSignal()	# /
 
 	def __init__(self, filename):
 		super().__init__()
 		self.sfz_filename = filename
 		self.kit = StarterKit()
+		self.closing = False
 		# Setup GUI
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'main_window.ui'), self)
@@ -70,6 +74,7 @@ class MainWindow(QMainWindow):
 		# Setup tempfile, synth, audio player, pindb
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
+		self.synth_ports_complete = False
 		self.audio_player = None	# Instantiated after initial paint delay
 		self.pindb = PinDatabase()
 		# Setup tree browser
@@ -104,13 +109,17 @@ class MainWindow(QMainWindow):
 		widget.deleteLater()
 		# Setup statusbar
 		self.cmb_midi_srcs = QComboBox(self.statusbar)
+		self.cmb_midi_srcs.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 		self.statusbar.addPermanentWidget(QLabel('Src:', self.statusbar))
 		self.statusbar.addPermanentWidget(self.cmb_midi_srcs)
 		self.cmb_audio_sinks = QComboBox(self.statusbar)
+		self.cmb_audio_sinks.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 		self.statusbar.addPermanentWidget(QLabel('Sink:', self.statusbar))
 		self.statusbar.addPermanentWidget(self.cmb_audio_sinks)
 		# Connect signals
-		self.sig_ports_complete.connect(self.slot_ports_complete)
+		self.sig_ports_complete.connect(self.slot_ports_complete, type = Qt.QueuedConnection)
+		self.sig_sources_changed.connect(self.slot_sources_changed, type = Qt.QueuedConnection)
+		self.sig_sinks_changed.connect(self.slot_sinks_changed, type = Qt.QueuedConnection)
 		self.lst_instruments.currentRowChanged.connect(self.stk_samples_widgets.setCurrentIndex)
 		self.lst_instruments.currentRowChanged.connect(self.slot_instrument_changed)
 		self.tree_files.selectionModel().selectionChanged.connect(self.slot_files_selection_changed)
@@ -123,16 +132,13 @@ class MainWindow(QMainWindow):
 		self.lst_samples.mouseReleaseEvent = self.samples_mouse_release
 		self.lst_samples.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.lst_samples.customContextMenuRequested.connect(self.slot_samples_context_menu)
-		self.cmb_midi_srcs.currentTextChanged.connect(self.slot_midi_src_changed)
-		self.cmb_audio_sinks.currentTextChanged.connect(self.slot_audio_sink_changed)
+		self.cmb_midi_srcs.currentTextChanged.connect(self.slot_midi_src_selected)
+		self.cmb_audio_sinks.currentTextChanged.connect(self.slot_audio_sink_selected)
 		self.action_new.triggered.connect(self.slot_new)
 		self.action_open.triggered.connect(self.slot_open)
 		self.action_save.triggered.connect(self.slot_save)
 		self.action_save_as.triggered.connect(self.slot_save_as)
 		self.action_exit.triggered.connect(self.close)
-		# Fill sink/source menus:
-		self.fill_cmb_sources()
-		self.fill_cmb_sinks()
 		# Set currently selected file
 		QTimer.singleShot(250, self.layout_complete)
 
@@ -153,6 +159,7 @@ class MainWindow(QMainWindow):
 		self.setWindowTitle(title)
 
 	def closeEvent(self, _):
+		self.closing = True
 		self.synth.quit()
 		self.save_geometry()
 		os.unlink(self.tempfile)
@@ -168,96 +175,103 @@ class MainWindow(QMainWindow):
 		self.close()
 
 	def jack_client_registration(self, client_name, action):
-		if action:
-			if SYNTH_NAME in client_name:
-				self.synth.client_name = client_name
-		else:
-			if self.cmb_audio_sinks.findText(client_name, Qt.MatchStartsWith) > -1:
-				self.fill_cmb_sinks()
-			elif self.cmb_midi_srcs.findText(client_name, Qt.MatchStartsWith) > -1:
-				self.fill_cmb_sources()
+		if not self.closing and self.synth_ports_complete:
+			self.sig_sinks_changed.emit()
+		elif action and client_name.startswith(SYNTH_NAME):
+			self.synth.client_name = client_name
 
 	def jack_port_registration(self, port, action):
-		if action and self.synth.client_name in port.name:
+		if not self.closing and self.synth_ports_complete:
+			self.sig_sources_changed.emit()
+		elif action and self.synth.client_name in port.name:
 			if port.is_input and port.is_midi:
 				self.synth.input_port = port
 			elif port.is_output and port.is_audio:
 				self.synth.output_ports.append(port)
-			else:
-				logging.error('Incorrect port type: %s', port)
 			if self.synth.input_port and len(self.synth.output_ports) == 2:
 				self.sig_ports_complete.emit()
-		else:
-			if port.is_output and port.is_midi:
-				self.fill_cmb_sources()
-			elif port.is_input and port.is_audio:
-				self.fill_cmb_sinks()
-
-	@pyqtSlot()
-	def slot_ports_complete(self):
-		"""
-		Called in response to sig_ports_complete since sig_ports_complete, emitted in
-		"jack_port_registration" is triggered from another thread, not the GUI thread.
-		"""
-		self.connect_midi_source()
-		self.connect_audio_sink()
 
 	# -----------------------------------------------------------------
 	# Source / sink management
 
-	def fill_cmb_sources(self):
+	@pyqtSlot()
+	def slot_ports_complete(self):
+		"""
+		Triggered by sig_ports_complete, emitted from another thread.
+		"""
+		self.synth_ports_complete = True
+		self.connect_midi_source()
+		self.connect_audio_sink()
+
+	@pyqtSlot()
+	def slot_sources_changed(self):
+		"""
+		Triggered by sig_sources_changed, emitted from another thread.
+		"""
+		self.connect_midi_source()
+
+	@pyqtSlot()
+	def slot_sinks_changed(self):
+		"""
+		Triggered by sig_sinks_changed, emitted from another thread.
+		"""
+		self.connect_audio_sink()
+
+	def connect_midi_source(self):
+		midi_src = settings().value(KEY_MIDI_SOURCE)
+		for port_name in self.conn_man.get_port_connections_names(self.synth.input_port):
+			if port_name != midi_src:
+				self.conn_man.disconnect_by_name(port_name, self.synth.input_port.name)
+		connected = False
+		if midi_src:
+			if src_port := self.conn_man.get_port_by_name(midi_src):
+				self.conn_man.connect(src_port, self.synth.input_port)
+				connected = True
 		with SigBlock(self.cmb_midi_srcs):
 			self.cmb_midi_srcs.clear()
 			self.cmb_midi_srcs.addItem('')
 			for port in self.conn_man.output_ports():
 				if port.is_midi:
 					self.cmb_midi_srcs.addItem(port.name)
-			if midi_src := settings().value(KEY_MIDI_SOURCE):
-				if self.cmb_midi_srcs.findText(midi_src, Qt.MatchExactly):
-					self.cmb_midi_srcs.setCurrentText(midi_src)
+			if connected and midi_src:
+				self.cmb_midi_srcs.setCurrentText(midi_src)
 
-	def fill_cmb_sinks(self):
+	def connect_audio_sink(self):
+		audio_sink = settings().value(KEY_AUDIO_SINK)
+		for output_port in chain(self.synth.output_ports, self.audio_player.output_ports):
+			output_port = self.conn_man.get_port_by_name(output_port.name)
+			for port_name in self.conn_man.get_port_connections_names(output_port):
+				if port_name.split(':')[0] != audio_sink:
+					self.conn_man.disconnect_by_name(output_port.name, port_name)
+		connected = False
+		if audio_sink:
+			audio_sink_ports = self.conn_man.get_ports(JACK_PORT_IS_INPUT,
+				port_name_pattern = f'{audio_sink}:*')
+			if audio_sink_ports:
+				for src_port, dest_port in zip(self.synth.output_ports, audio_sink_ports):
+					self.conn_man.connect(src_port, dest_port)
+				for src_port, dest_port in zip(self.audio_player.output_ports, audio_sink_ports):
+					self.conn_man.connect(src_port, dest_port)
+				connected = True
 		with SigBlock(self.cmb_audio_sinks):
 			self.cmb_audio_sinks.clear()
 			self.cmb_audio_sinks.addItem('')
 			valid_clients = set(port.client_name \
-				for port in self.conn_man.input_ports() \
-				if port.is_audio)
+				for port in self.conn_man.input_ports() if port.is_audio)
 			for client in valid_clients:
 				self.cmb_audio_sinks.addItem(client)
-			if audio_sink := settings().value(KEY_AUDIO_SINK):
-				if self.cmb_audio_sinks.findText(audio_sink, Qt.MatchExactly):
-					self.cmb_audio_sinks.setCurrentText(audio_sink)
+			if connected and audio_sink:
+				self.cmb_audio_sinks.setCurrentText(audio_sink)
 
 	@pyqtSlot(str)
-	def slot_midi_src_changed(self, value):
-		if midi_src := settings().value(KEY_MIDI_SOURCE):
-			self.conn_man.disconnect_by_name(midi_src, self.synth.input_port.name)
+	def slot_midi_src_selected(self, value):
 		settings().setValue(KEY_MIDI_SOURCE, value)
 		self.connect_midi_source()
 
 	@pyqtSlot(str)
-	def slot_audio_sink_changed(self, value):
-		if audio_sink := settings().value(KEY_AUDIO_SINK):
-			for src_port in self.synth.output_ports:
-				for dest_port in self.conn_man.get_port_connections(src_port):
-					self.conn_man.disconnect(src_port, dest_port)
+	def slot_audio_sink_selected(self, value):
 		settings().setValue(KEY_AUDIO_SINK, value)
 		self.connect_audio_sink()
-
-	def connect_midi_source(self):
-		if midi_src := settings().value(KEY_MIDI_SOURCE):
-			self.conn_man.connect_by_name(midi_src, self.synth.input_port.name)
-
-	def connect_audio_sink(self):
-		if audio_sink := settings().value(KEY_AUDIO_SINK):
-			audio_sink_ports = [ port for port \
-				in self.conn_man.input_ports() \
-				if port.client_name == audio_sink ]
-			for src_port, dest_port in zip(self.synth.output_ports, audio_sink_ports):
-				self.conn_man.connect(src_port, dest_port)
-			for src_port, dest_port in zip(self.audio_player.output_ports, audio_sink_ports):
-				self.conn_man.connect(src_port, dest_port)
 
 	# -----------------------------------------------------------------
 	# Instrument list management
