@@ -24,7 +24,7 @@ from sfzen.drumkits import Drumkit, iter_pitch_by_group
 
 from kitstarter import	settings, xdg_open, \
 						APPLICATION_NAME, PACKAGE_DIR, KEY_RECENT_FOLDER, \
-						KEY_FILES_ROOT, KEY_FILES_CURRENT
+						KEY_FILES_ROOT, KEY_FILES_CURRENT, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 from kitstarter.starter_kits import StarterKit
 from kitstarter.pindb import PinDatabase
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
 			uic.loadUi(join(dirname(__file__), 'main_window.ui'), self)
 		init_paint_resources()
 		self.restore_geometry()
+		# Setup fonts and icons
 		font = self.lst_instruments.font()
 		font.setPointSizeF(11.5)
 		self.lst_instruments.setFont(font)
@@ -72,8 +73,6 @@ class MainWindow(QMainWindow):
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
 		self.audio_player = None	# Instantiated after initial paint delay
-		self.current_midi_source = None
-		self.current_audio_sink = None
 		# Startup paths
 		root_path = settings().value(KEY_FILES_ROOT, QDir.homePath())
 		current_path = settings().value(KEY_FILES_CURRENT, QDir.homePath())
@@ -201,8 +200,8 @@ class MainWindow(QMainWindow):
 	@pyqtSlot()
 	def slot_ports_complete(self):
 		"""
-		Called in response to sig_ports_complete since sig_ports_complete is generated
-		in another thread,
+		Called in response to sig_ports_complete since sig_ports_complete, emitted in
+		"jack_port_registration" is triggered from another thread, not the GUI thread.
 		"""
 		self.connect_midi_source()
 		self.connect_audio_sink()
@@ -217,9 +216,9 @@ class MainWindow(QMainWindow):
 			for port in self.conn_man.output_ports():
 				if port.is_midi:
 					self.cmb_midi_srcs.addItem(port.name)
-			if self.current_midi_source and \
-				self.cmb_midi_srcs.findText(self.current_midi_source, Qt.MatchExactly):
-				self.cmb_midi_srcs.setCurrentText(self.current_midi_source)
+			if midi_src := settings().value(KEY_MIDI_SOURCE):
+				if self.cmb_midi_srcs.findText(midi_src, Qt.MatchExactly):
+					self.cmb_midi_srcs.setCurrentText(midi_src)
 
 	def fill_cmb_sinks(self):
 		with SigBlock(self.cmb_audio_sinks):
@@ -230,35 +229,35 @@ class MainWindow(QMainWindow):
 				if port.is_audio)
 			for client in valid_clients:
 				self.cmb_audio_sinks.addItem(client)
-			if self.current_audio_sink and \
-				self.cmb_audio_sinks.findText(self.current_audio_sink, Qt.MatchExactly):
-				self.cmb_audio_sinks.setCurrentText(self.current_audio_sink)
+			if audio_sink := settings().value(KEY_AUDIO_SINK):
+				if self.cmb_audio_sinks.findText(audio_sink, Qt.MatchExactly):
+					self.cmb_audio_sinks.setCurrentText(audio_sink)
 
 	@pyqtSlot(str)
 	def slot_midi_src_changed(self, value):
-		if self.current_midi_source:
-			self.conn_man.disconnect_by_name(self.current_midi_source, self.synth.input_port.name)
-		self.current_midi_source = value
+		if midi_src := settings().value(KEY_MIDI_SOURCE):
+			self.conn_man.disconnect_by_name(midi_src, self.synth.input_port.name)
+		settings().setValue(KEY_MIDI_SOURCE, value)
 		self.connect_midi_source()
 
 	@pyqtSlot(str)
 	def slot_audio_sink_changed(self, value):
-		if self.current_audio_sink:
+		if audio_sink := settings().value(KEY_AUDIO_SINK):
 			for src_port in self.synth.output_ports:
 				for dest_port in self.conn_man.get_port_connections(src_port):
 					self.conn_man.disconnect(src_port, dest_port)
-		self.current_audio_sink = value
+		settings().setValue(KEY_AUDIO_SINK, value)
 		self.connect_audio_sink()
 
 	def connect_midi_source(self):
-		if self.current_midi_source:
-			self.conn_man.connect_by_name(self.current_midi_source, self.synth.input_port.name)
+		if midi_src := settings().value(KEY_MIDI_SOURCE):
+			self.conn_man.connect_by_name(midi_src, self.synth.input_port.name)
 
 	def connect_audio_sink(self):
-		if self.current_audio_sink:
+		if audio_sink := settings().value(KEY_AUDIO_SINK):
 			audio_sink_ports = [ port for port \
 				in self.conn_man.input_ports() \
-				if port.client_name == self.current_audio_sink ]
+				if port.client_name == audio_sink ]
 			for src_port, dest_port in zip(self.synth.output_ports, audio_sink_ports):
 				self.conn_man.connect(src_port, dest_port)
 			for src_port, dest_port in zip(self.audio_player.output_ports, audio_sink_ports):

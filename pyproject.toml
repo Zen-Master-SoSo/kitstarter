@@ -7,7 +7,7 @@ classifiers = ["License :: OSI Approved :: GNU General Public License v3 or late
 dynamic = ["version", "description"]
 dependencies = [
 	"PyQt5",
-	"soso_qt_extras >= 1.4.0",
+	"soso_qt_extras >= 1.6.0",
 	"conn_jack",
 	"midi_notes",
 	"sfzen >= 1.2.0",

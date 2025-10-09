@@ -20,31 +20,19 @@ __version__ = "0.1.0"
 
 APPLICATION_NAME	= "KitStarter"
 PACKAGE_DIR			= os.path.dirname(__file__)
-DEFAULT_STYLE		= 'system'
-KEY_STYLE			= 'Style'
 KEY_RECENT_FOLDER	= 'RecentProjectFolder'
 KEY_FILES_ROOT		= 'FilesRoot'
 KEY_FILES_CURRENT	= 'FilesCurrent'
+KEY_MIDI_SOURCE		= 'MIDISource'
+KEY_AUDIO_SINK		= 'AudioSink'
+
+# -------------------------------------------------------------------
+# Per-user application settings
 
 @cache
 def settings():
 	return QSettings('ZenSoSo', 'kitstarter')
 
-
-@cache
-def styles():
-	return {
-		os.path.splitext(os.path.basename(path))[0] : path \
-		for path in glob.glob(os.path.join(PACKAGE_DIR, 'styles', '*.css'))
-	}
-
-def set_application_style():
-	style = settings().value(KEY_STYLE, DEFAULT_STYLE)
-	try:
-		with open(styles()[style], 'r', encoding = 'utf-8') as cssfile:
-			QApplication.instance().setStyleSheet(cssfile.read())
-	except KeyError:
-		pass
 
 # -------------------------------------------------------------------
 # Cross-platform open any file / folder with system associated tool
@@ -101,6 +89,9 @@ QWidget.restore_geometry = _restore_geometry
 QWidget.save_geometry = _save_geometry
 
 
+# -------------------------------------------------------------------
+# Main
+
 def main():
 	from kitstarter.gui.main_window import MainWindow
 
@@ -129,9 +120,9 @@ def main():
 		main_window = MainWindow(options.Filename or None)
 	except JackConnectError:
 		DevilBox('Could not connect to JACK server. Is it running?')
-		sys.exit(1)
+		return 1
 	main_window.show()
-	sys.exit(app.exec())
+	return app.exec()
 
 
 if __name__ == "__main__":

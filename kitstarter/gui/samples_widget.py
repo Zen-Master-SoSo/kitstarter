@@ -11,25 +11,40 @@ from collections import namedtuple
 
 from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
 from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
-from PyQt5.QtWidgets import	QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, \
+from PyQt5.QtWidgets import	QWidget, QSizePolicy, QLayout, QVBoxLayout, QHBoxLayout, \
 							QCheckBox, QPushButton, QLabel, QSpinBox, QDoubleSpinBox, \
 							QSlider, QFrame
 
 from qt_extras import SigBlock
-from qt_extras.list_layout import VListLayout
+from qt_extras.shuffle_grid import ShuffleGrid
 
 from kitstarter import PACKAGE_DIR
 from kitstarter.starter_kits import Velcurve
 
+# Suggested sizes:
+TRACK_HEIGHT = 34
+TRACK_WIDTH = 224
+SCALE_HEIGHT = 25
+LABEL_WIDTH = 190
 
+# Grid column indexes
+COL_LABEL = 0
+COL_GRAPH = 1
+COL_VOLUME = 2
+COL_SEMITONES = 3
+COL_CENTS = 4
+COL_BUTTONS = 5
+
+# VelocityGraph grab feature
 FEATURE_LOVEL = 1
 FEATURE_HIVEL = 2
 FEATURE_BOTH = 3
+
+# VelocityGraph snap ranges
 LINEAR_SNAP_RANGE = 4
 POLAR_SNAP_RANGE = sqrt(pow(LINEAR_SNAP_RANGE, 2) * 2)
-TRACK_HEIGHT = 32
-TRACK_WIDTH = 224
-LABEL_WIDTH = 180
+
+# Milliseconds to wait after changes are made before signalling change
 UPDATES_DEBOUNCE = 680
 
 Overlap = namedtuple('Overlap', ['lovel', 'hivel', 't1', 't2'])
@@ -59,7 +74,6 @@ class _Track(QWidget):
 
 	def __init__(self, parent):
 		super().__init__(parent)
-		self.setFixedHeight(TRACK_HEIGHT)
 		self.v2x_scale = None
 
 	def resizeEvent(self, _):
@@ -104,7 +118,7 @@ class _Track(QWidget):
 		return self.a2y(self.v2a(velocity))
 
 
-class SampleTrack(_Track):
+class VelocityGraph(_Track):
 	"""
 	Graphically displays the effects of lovel, hivel, and amp_velcurve_N.
 	"""
@@ -128,7 +142,8 @@ class SampleTrack(_Track):
 
 	def __init__(self, parent, sample):
 		super().__init__(parent)
-		self.setFixedWidth(TRACK_WIDTH)
+		self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+		self.setMinimumHeight(TRACK_HEIGHT)
 		self.sample = sample
 		self.overlaps = []
 		self.setMouseTracking(True)
@@ -136,12 +151,15 @@ class SampleTrack(_Track):
 		self.hover_point_grabbed = False
 
 	def __str__(self):
-		return f'SampleTrack for "{self.sample}"'
+		return f'VelocityGraph for "{self.sample}"'
+
+	def sizeHint(self):
+		return QSize(TRACK_WIDTH, TRACK_HEIGHT)
 
 	def mouseMoveEvent(self, event):
 		if event.buttons() == Qt.LeftButton:
 			if self.hover_point_index is None:
-				self.mouse_lohivel_event(event)
+				self.range_change_event(event)
 			else:
 				self.sample._velcurves[self.hover_point_index] = Velcurve(
 					self.sample._velcurves[self.hover_point_index].velocity \
@@ -169,7 +187,7 @@ class SampleTrack(_Track):
 	def mousePressEvent(self, event):
 		if event.buttons() == Qt.LeftButton:
 			if self.hover_point_index is None:
-				self.mouse_lohivel_event(event)
+				self.range_change_event(event)
 			else:
 				self.hover_point_grabbed = True
 				self.update()
@@ -180,7 +198,7 @@ class SampleTrack(_Track):
 			self.sig_value_changed.emit()
 			self.update()
 
-	def mouse_lohivel_event(self, event):
+	def range_change_event(self, event):
 		velocity = self.x2v(event.x())
 		feature = None
 		if velocity <= self.sample.lovel:
@@ -274,6 +292,28 @@ class SampleTrack(_Track):
 		self.sample.hivel = value
 		self.update()
 
+	# -----------------------------------------------------------------
+	# These slots catch signals from the spinners on the same grid row
+	# as this VelocityGraph
+
+	@pyqtSlot(float)
+	def slot_volume_changed(self, value):
+		self.sample.volume = value
+		self.sig_value_changed.emit()
+
+	@pyqtSlot(int)
+	def slot_transpose_changed(self, value):
+		self.sample.transpose = value
+		self.sig_value_changed.emit()
+
+	@pyqtSlot(int)
+	def slot_tune_changed(self, value):
+		self.sample.tune = value
+		self.sig_value_changed.emit()
+
+	# -----------------------------------------------------------------
+	# Velocity curve functions:
+
 	def overlap(self, other_track):
 		"""
 		Used to determine if this track overlaps abother track.
@@ -316,114 +356,6 @@ class SampleTrack(_Track):
 		self.update()
 
 
-class ButtonsTrack(QFrame, _Track):
-
-	sig_value_changed = pyqtSignal()
-	sig_move_up = pyqtSignal()
-	sig_move_down = pyqtSignal()
-	sig_delete = pyqtSignal()
-
-	@classmethod
-	def init_paint_resources(cls):
-		cls.icon_up_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-enabled.svg'))
-		cls.icon_down_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-enabled.svg'))
-		cls.icon_up_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-disabled.svg'))
-		cls.icon_down_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-disabled.svg'))
-		cls.icon_delete = QIcon(join(PACKAGE_DIR, 'res', 'delete.svg'))
-		cls.icon_size = QSize(14, 14)
-
-	def __init__(self, parent, sample):
-		super().__init__(parent)
-		self.sample = sample
-
-		lo = QHBoxLayout()
-		lo.setSpacing(11)
-		lo.setContentsMargins(0,0,0,0)
-
-		vollo = QHBoxLayout()
-		vollo.setSpacing(3)
-
-		lbl = QLabel('Vol:', self)
-		vollo.addWidget(lbl)
-		self.spin_volume = QDoubleSpinBox(self)
-		self.spin_volume.setMaximumWidth(64)
-		self.spin_volume.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-		self.spin_volume.setRange(-144, 6)
-		self.spin_volume.setValue(0)
-		self.spin_volume.setSingleStep(0.25)
-		self.spin_volume.valueChanged.connect(self.slot_value_changed)
-		vollo.addWidget(self.spin_volume)
-
-		lo.addItem(vollo)
-
-		tunlo = QHBoxLayout()
-		tunlo.setSpacing(3)
-
-		tunlo.addWidget(QLabel('Tune:', self))
-		self.spin_transpose = QSpinBox(self)
-		self.spin_transpose.setMaximumWidth(42)
-		self.spin_transpose.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-		self.spin_transpose.setRange(-11, 11)
-		self.spin_transpose.setValue(0)
-		self.spin_transpose.valueChanged.connect(self.slot_value_changed)
-		tunlo.addWidget(self.spin_transpose)
-		tunlo.addWidget(QLabel('semi,', self))
-
-		self.spin_tune = QSpinBox(self)
-		self.spin_tune.setMaximumWidth(45)
-		self.spin_tune.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-		self.spin_tune.setRange(-100, 100)
-		self.spin_tune.setValue(0)
-		self.spin_tune.valueChanged.connect(self.slot_value_changed)
-		tunlo.addWidget(self.spin_tune)
-		tunlo.addWidget(QLabel('cent', self))
-
-		lo.addItem(tunlo)
-
-		btnlo = QHBoxLayout()
-
-		self.up_button = QPushButton(self)
-		self.up_button.setIcon(self.icon_up_enabled)
-		self.up_button.setIconSize(self.icon_size)
-		self.up_button.clicked.connect(self.slot_button_up_click)
-		btnlo.addWidget(self.up_button)
-
-		self.down_button = QPushButton(self)
-		self.down_button.setIcon(self.icon_down_enabled)
-		self.down_button.setIconSize(self.icon_size)
-		self.down_button.clicked.connect(self.slot_button_down_click)
-		btnlo.addWidget(self.down_button)
-
-		delete_button = QPushButton(self)
-		delete_button.setIcon(self.icon_delete)
-		delete_button.setIconSize(self.icon_size)
-		delete_button.clicked.connect(self.slot_button_delete_click)
-		btnlo.addWidget(delete_button)
-
-		lo.addItem(btnlo)
-
-		self.setLayout(lo)
-
-	@pyqtSlot()
-	def slot_value_changed(self):
-		self.sample.volume = self.spin_volume.value()
-		self.sample.transpose = self.spin_transpose.value()
-		self.sample.tune = self.spin_tune.value()
-		self.sig_value_changed.emit()
-
-	@pyqtSlot()
-	def slot_button_up_click(self):
-		self.sig_move_up.emit()
-
-	@pyqtSlot()
-	def slot_button_down_click(self):
-		self.sig_move_down.emit()
-
-	@pyqtSlot()
-	def slot_button_delete_click(self):
-		self.sig_delete.emit()
-
-
 class Scale(_Track):
 	"""
 	Renders a scale at the top of all tracks with ticks at points representing the
@@ -437,6 +369,7 @@ class Scale(_Track):
 
 	def __init__(self, parent):
 		super().__init__(parent)
+		self.setFixedHeight(SCALE_HEIGHT)
 		self.indicator_points = [
 			QPointF(-4,0),
 			QPointF(0,4),
@@ -457,7 +390,6 @@ class Scale(_Track):
 
 	def paintEvent(self, _):
 		painter = QPainter(self)
-
 		painter.setFont(self.label_font)
 		for text, velocity in self.scale_points.items():
 			point = QPointF(self.v2x(velocity), 9)
@@ -468,10 +400,8 @@ class Scale(_Track):
 				point + QPointF(0, 10),
 				point + QPointF(0, TRACK_HEIGHT)
 			)
-
 		painter.setPen(self.outline_pen)
 		painter.drawLine(self.rect().bottomLeft(), self.rect().bottomRight())
-
 		painter.end()
 
 
@@ -494,6 +424,8 @@ class Pad(_Track):
 
 	def __init__(self, parent):
 		super().__init__(parent)
+		self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+		self.setMinimumHeight(TRACK_HEIGHT)
 		self.mouse_pressed = False
 
 	def mousePressEvent(self, event):
@@ -530,65 +462,72 @@ class SamplesWidget(QWidget):
 		super().__init__(parent)
 		self.instrument = instrument
 
-		self.button_font = self.font()
-		self.button_font.setPixelSize(11)
+		# Setup common icons / fonts
+		self.small_font = self.font()
+		self.small_font.setPointSize(10)
+		self.icon_up_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-enabled.svg'))
+		self.icon_down_enabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-enabled.svg'))
+		self.icon_up_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-up-disabled.svg'))
+		self.icon_down_disabled = QIcon(join(PACKAGE_DIR, 'res', 'arrow-down-disabled.svg'))
+		self.icon_delete = QIcon(join(PACKAGE_DIR, 'res', 'delete.svg'))
+		self.icon_size = QSize(14, 14)
 
+		# Setup update timer (used to prevent triggering file update when changes are being made)
 		self.update_timer = QTimer()
 		self.update_timer.setSingleShot(True)
 		self.update_timer.setInterval(UPDATES_DEBOUNCE)
 		self.update_timer.timeout.connect(self.slot_updated)
 
+		# Create main layout
 		main_layout = QVBoxLayout()
-		main_layout.setContentsMargins(8,4,8,4) # left, top, right, bottom
+		main_layout.setContentsMargins(8,4,8,8) # left, top, right, bottom
 		main_layout.setSpacing(8)
 
-		title_label = QLabel(self.instrument.name)
-		title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-		title_label.setObjectName('title')
-		main_layout.addWidget(title_label)
+		# Setup title area
+		title_layout = QHBoxLayout()
+		label = QLabel(self.instrument.name)
+		font = label.font()
+		font.setBold(True)
+		font.setPointSize(13)
+		label.setFont(font)
+		label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+		title_layout.addWidget(label)
+		self.sample_count_label = QLabel('[no samples]', self)
+		self.sample_count_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+		font = self.sample_count_label.font()
+		font.setItalic(True)
+		self.sample_count_label.setFont(font)
+		title_layout.addWidget(self.sample_count_label)
+		title_layout.addStretch()
+		main_layout.addLayout(title_layout)
 
-		tracks_labels_layout = QVBoxLayout()
-		tracks_labels_layout.setSpacing(0)
-		self.path_labels = VListLayout()
-		self.path_labels.setSpacing(0)
-		self.path_labels.setContentsMargins(0,0,0,0)
-		self.sample_count_label = QLabel('[No samples]', self)
-		self.sample_count_label.setFixedHeight(TRACK_HEIGHT)
-		self.sample_count_label.setMinimumWidth(LABEL_WIDTH)
-		self.sample_count_label.setFont(self.button_font)
-		self.sample_count_label.setEnabled(False)
-		tracks_labels_layout.insertSpacing(-1, TRACK_HEIGHT)
-		tracks_labels_layout.addLayout(self.path_labels)
-		tracks_labels_layout.addWidget(self.sample_count_label)
+		# Setup main grid
+		self.grid = ShuffleGrid()
+		self.grid.setHorizontalSpacing(12)
+		self.grid.setVerticalSpacing(0)
+		self.grid.setSizeConstraint(QLayout.SetMinimumSize)
+		# Row 0
+		self.grid.addWidget(Scale(self), 0, COL_GRAPH)
+		for text, col in [
+			('Vol.', COL_VOLUME),
+			('Semi.', COL_SEMITONES),
+			('Cents', COL_CENTS)
+		]:
+			label = QLabel(text, self)
+			label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+			label.setFont(self.small_font)
+			self.grid.addWidget(label, 0, col)
+		# Row 1
+		self.pad = Pad(self)
+		self.grid.addWidget(self.pad, 1, COL_GRAPH)
+		# Set grid stretch
+		self.grid.setColumnStretch(COL_LABEL, 2)
+		self.grid.setColumnStretch(COL_GRAPH, 12)
+		# Add grid
+		main_layout.addLayout(self.grid)
 
-		tracks_velo_layout = QVBoxLayout()
-		tracks_velo_layout.setSpacing(0)
-		self.tracks = VListLayout()
-		self.tracks.setSpacing(0)
-		self.tracks.setContentsMargins(0,0,0,0)
-		self.tracks.sig_len_changed.connect(self.slot_track_len_changed)
-		pad = Pad(self)
-		tracks_velo_layout.addWidget(Scale(self))
-		tracks_velo_layout.addLayout(self.tracks)
-		tracks_velo_layout.addWidget(pad)
-
-		tracks_buttons_layout = QVBoxLayout()
-		tracks_buttons_layout.setSpacing(0)
-		self.button_tracks = VListLayout()
-		self.button_tracks.setSpacing(0)
-		self.button_tracks.setContentsMargins(0,0,0,0)
-		tracks_buttons_layout.insertSpacing(-1, TRACK_HEIGHT)
-		tracks_buttons_layout.addLayout(self.button_tracks)
-		tracks_buttons_layout.insertSpacing(-1, TRACK_HEIGHT)
-
-		tracks_layout = QHBoxLayout()
-		tracks_layout.addLayout(tracks_labels_layout)
-		tracks_layout.addLayout(tracks_velo_layout)
-		tracks_layout.addLayout(tracks_buttons_layout)
-		tracks_layout.addStretch()
-
+		# Setup options area
 		self.spread_button = QPushButton('Spread')
-		self.spread_button.setFixedHeight(TRACK_HEIGHT - 4)
 		self.chk_crossfade = QCheckBox('Cross fade', self)
 		self.chk_snap = QCheckBox('Snap', self)
 		lbl_pan = QLabel('Pan:', self)
@@ -598,101 +537,166 @@ class SamplesWidget(QWidget):
 		self.sld_pan.setMaximum(100)
 		self.sld_pan.setTickInterval(50)
 		self.sld_pan.setTickPosition(QSlider.TicksBelow)
-
-		self.spread_button.setFont(self.button_font)
-		self.chk_crossfade.setFont(self.button_font)
-		self.chk_snap.setFont(self.button_font)
-		lbl_pan.setFont(self.button_font)
-
-		self.spread_button.setEnabled(False)
-		self.chk_crossfade.setEnabled(False)
-		self.chk_snap.setEnabled(False)
-		self.sld_pan.setEnabled(False)
-
+		self.spread_button.setFont(self.small_font)
+		self.chk_crossfade.setFont(self.small_font)
+		self.chk_snap.setFont(self.small_font)
+		lbl_pan.setFont(self.small_font)
 		options_layout = QHBoxLayout()
 		options_layout.setContentsMargins(4, 0, 4, 0)
-		options_layout.setSpacing(4)
+		options_layout.setSpacing(8)
+		options_layout.addStretch()
 		options_layout.addWidget(self.spread_button)
-		options_layout.addSpacing(4)
 		options_layout.addWidget(self.chk_crossfade)
 		options_layout.addWidget(self.chk_snap)
-		options_layout.addSpacing(4)
 		options_layout.addWidget(lbl_pan)
 		options_layout.addWidget(self.sld_pan)
 		options_layout.addStretch()
-
-		main_layout.addLayout(tracks_layout)
-		main_layout.addStretch()
+		options_layout.setSizeConstraint(QLayout.SetFixedSize)
+		main_layout.addSpacing(5)
 		main_layout.addLayout(options_layout)
 
+		# Set main layout and update ui
 		self.setLayout(main_layout)
+		self.update_ui()
 
+		# Connect UI signals
 		self.spread_button.clicked.connect(self.slot_spread)
 		self.chk_crossfade.stateChanged.connect(self.slot_crossfade_state_change)
 		self.chk_snap.stateChanged.connect(self.slot_snap_state_change)
 		self.sld_pan.valueChanged.connect(self.slot_pan_changed)
-		pad.sig_mouse_press.connect(self.slot_mouse_press)
-		pad.sig_mouse_release.connect(self.slot_mouse_release)
-
-	def clear(self):
-		self.path_labels.clear()
-		self.button_tracks.clear()
-		self.tracks.clear()
+		self.pad.sig_mouse_press.connect(self.slot_mouse_press)
+		self.pad.sig_mouse_release.connect(self.slot_mouse_release)
 
 	def load_instrument(self, instrument):
-		self.clear()
+		while self.grid.inhabited_row_count() > 2:
+			self.grid.delete_row(self.grid.inhabited_row_indexes()[1])
 		self.instrument = instrument
 		with SigBlock(self.sld_pan):
-			self.sld_pan.setValue(self.instrument.pan)
+			self.sld_pan.setValue(int(self.instrument.pan * 100))
 		for sample in self.instrument.samples.values():
 			self._add_sample(sample)
-		self.enab_updown_buttons()
+		self.update_ui()
 
 	def add_sample(self, path):
 		if path in self.instrument.samples:
 			logging.warning('%s already in %s samples', path, self.instrument.name)
 			return
 		self._add_sample(self.instrument.add_sample(path))
-		self.enab_updown_buttons()
-		self.sfz_updated()
+		self.update_ui()
+		self.slot_value_changed()
 
 	def _add_sample(self, sample):
-		sample_track = SampleTrack(self, sample)
-		sample_track.sig_range_changed.connect(self.slot_range_changed)
-		sample_track.sig_value_changed.connect(self.slot_value_changed)
-		self.tracks.append(sample_track)
+
+		widgets = []
 
 		label = QLabel(basename(sample.path), self)
+		label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 		label.setToolTip(sample.path)
 		label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-		label.setFixedHeight(TRACK_HEIGHT)
-		self.path_labels.append(label)
+		widgets.append(label)
 
-		button_track = ButtonsTrack(self, sample)
-		with SigBlock(
-			button_track.spin_volume,
-			button_track.spin_transpose,
-			button_track.spin_tune
-		):
-			button_track.spin_volume.setValue(sample.volume)
-			button_track.spin_transpose.setValue(sample.transpose)
-			button_track.spin_tune.setValue(sample.tune)
-		button_track.sig_value_changed.connect(self.slot_value_changed)
-		button_track.sig_move_up.connect(partial(self.slot_move_up,
-			label, sample_track, button_track))
-		button_track.sig_move_down.connect(partial(self.slot_move_down,
-			label, sample_track, button_track))
-		button_track.sig_delete.connect(partial(self.slot_delete,
-			label, sample_track, button_track))
-		self.button_tracks.append(button_track)
+		velo_graph = VelocityGraph(self, sample)
+		velo_graph.sig_range_changed.connect(self.slot_range_changed)
+		velo_graph.sig_value_changed.connect(self.slot_value_changed)
+		widgets.append(velo_graph)
 
-	def sfz_updated(self):
-		self.sig_updating.emit()
-		self.update_timer.start()
+		frame = QFrame(self)
+		lo = QVBoxLayout()
+		lo.setContentsMargins(0,0,0,0)
+		lo.setSpacing(0)
+		spinner = QDoubleSpinBox(frame)
+		spinner.setRange(-144, 6)
+		spinner.setValue(sample.volume)
+		spinner.setSingleStep(0.25)
+		spinner.valueChanged.connect(velo_graph.slot_volume_changed)
+		spinner.setMaximumWidth(58)
+		spinner.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Minimum)
+		lo.addWidget(spinner)
+		lo.addStretch()
+		frame.setLayout(lo)
+		widgets.append(frame)
 
-	@pyqtSlot()
-	def slot_updated(self):
-		self.sig_updated.emit()
+		frame = QFrame(self)
+		lo = QVBoxLayout()
+		lo.setContentsMargins(0,0,0,0)
+		lo.setSpacing(0)
+		spinner = QSpinBox(frame)
+		spinner.setRange(-11, 11)
+		spinner.setValue(sample.transpose)
+		spinner.valueChanged.connect(velo_graph.slot_transpose_changed)
+		spinner.setMaximumWidth(46)
+		spinner.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Minimum)
+		lo.addWidget(spinner)
+		lo.addStretch()
+		frame.setLayout(lo)
+		widgets.append(frame)
+
+		frame = QFrame(self)
+		lo = QVBoxLayout()
+		lo.setContentsMargins(0,0,0,0)
+		lo.setSpacing(0)
+		spinner = QSpinBox(frame)
+		spinner.setRange(-100, 100)
+		spinner.setValue(sample.tune)
+		spinner.valueChanged.connect(velo_graph.slot_tune_changed)
+		spinner.setMaximumWidth(46)
+		spinner.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Minimum)
+		lo.addWidget(spinner)
+		lo.addStretch()
+		frame.setLayout(lo)
+		widgets.append(frame)
+
+		frame = QFrame(self)
+		btnlo = QHBoxLayout()
+		btnlo.setContentsMargins(0,0,0,0)
+		btnlo.setSpacing(2)
+
+		frame.up_button = QPushButton(frame)
+		frame.up_button.setIcon(self.icon_up_enabled)
+		frame.up_button.setIconSize(self.icon_size)
+		frame.up_button.clicked.connect(partial(self.slot_move_up, frame.up_button))
+		btnlo.addWidget(frame.up_button)
+
+		frame.down_button = QPushButton(frame)
+		frame.down_button.setIcon(self.icon_down_enabled)
+		frame.down_button.setIconSize(self.icon_size)
+		frame.down_button.clicked.connect(partial(self.slot_move_down, frame.down_button))
+		btnlo.addWidget(frame.down_button)
+
+		button = QPushButton(frame)
+		button.setIcon(self.icon_delete)
+		button.setIconSize(self.icon_size)
+		button.clicked.connect(partial(self.slot_delete, button))
+		btnlo.addWidget(button)
+
+		frmlo = QVBoxLayout()
+		frmlo.setContentsMargins(0,0,0,0)
+		frmlo.addLayout(btnlo)
+		frmlo.addStretch()
+		frame.setLayout(frmlo)
+		widgets.append(frame)
+
+		valid_indexes = self.grid.inhabited_row_indexes()
+		self.grid.insert_row(widgets, valid_indexes[-1])
+
+	def get_button_row(self, button):
+		idx = self.grid.indexOf(button.parent())
+		row, *_ = self.grid.getItemPosition(idx)
+		return row
+
+	def velo_graphs(self):
+		"""
+		Returns a list of VelocityGraph
+		"""
+		# Exclude first row (scale) and last row (pad)
+		return self.grid.column(COL_GRAPH)[1:-1]
+
+	def button_frames(self):
+		"""
+		Returns a list of QFrame, each containing an up / down / delete button
+		"""
+		# Exclude first row (scale) and last row (pad)
+		return self.grid.column(COL_BUTTONS)[1:-1]
 
 	@pyqtSlot(int)
 	def slot_mouse_press(self, velocity):
@@ -701,15 +705,6 @@ class SamplesWidget(QWidget):
 	@pyqtSlot()
 	def slot_mouse_release(self):
 		self.sig_mouse_release.emit(self.instrument.pitch)
-
-	@pyqtSlot()
-	def slot_track_len_changed(self):
-		cnt = len(self.tracks)
-		enab = cnt > 1
-		self.spread_button.setEnabled(enab)
-		self.chk_crossfade.setEnabled(enab)
-		self.chk_snap.setEnabled(enab)
-		self.sample_count_label.setText('(1 sample)' if cnt == 1 else f'({cnt} samples)')
 
 	@pyqtSlot(int)
 	def slot_snap_state_change(self, state):
@@ -727,17 +722,18 @@ class SamplesWidget(QWidget):
 
 	@pyqtSlot(int)
 	def slot_pan_changed(self, value):
-		self.instrument.pan = value
-		self.sfz_updated()
+		self.instrument.pan = value / 100
+		self.slot_value_changed()
 
 	@pyqtSlot()
 	def slot_spread(self):
-		spread = 127 / len(self.tracks)
-		for i in range(len(self.tracks)):
-			self.tracks[i].lovel = round(i * spread)
-			self.tracks[i].hivel = round((i + 1) * spread)
+		tracks = self.velo_graphs()
+		spread = 127 / len(tracks)
+		for i in range(len(tracks)):
+			tracks[i].lovel = round(i * spread)
+			tracks[i].hivel = round((i + 1) * spread)
 		self.find_overlaps()
-		self.sfz_updated()
+		self.slot_value_changed()
 
 	@property
 	def snap(self):
@@ -757,9 +753,8 @@ class SamplesWidget(QWidget):
 
 	@pyqtSlot(QWidget, int)
 	def slot_range_changed(self, source_track, feature):
-		self.sfz_updated()
 		if self.snap:
-			other_tracks = list(set(self.tracks) ^ set([source_track]))
+			other_tracks = list(set(self.velo_graphs()) ^ set([source_track]))
 			if feature == FEATURE_LOVEL:
 				for other_track in other_tracks:
 					if abs(source_track.lovel - other_track.hivel) <= LINEAR_SNAP_RANGE:
@@ -770,60 +765,73 @@ class SamplesWidget(QWidget):
 						other_track.lovel = source_track.hivel
 		elif self.crossfade:
 			self.find_overlaps()
+		self.slot_value_changed()
 
 	@pyqtSlot()
 	def slot_value_changed(self):
-		self.sfz_updated()
+		self.sig_updating.emit()
+		self.update_timer.start()
 
-	@pyqtSlot(QWidget, QWidget, QWidget)
-	def slot_move_up(self, label, sample_track, button_widget):
-		self.path_labels.move_up(label)
-		self.tracks.move_up(sample_track)
-		self.button_tracks.move_up(button_widget)
-		self.enab_updown_buttons()
+	@pyqtSlot()
+	def slot_updated(self):
+		self.sig_updated.emit()
 
-	@pyqtSlot(QWidget, QWidget, QWidget)
-	def slot_move_down(self, label, sample_track, button_widget):
-		self.path_labels.move_down(label)
-		self.tracks.move_down(sample_track)
-		self.button_tracks.move_down(button_widget)
-		self.enab_updown_buttons()
+	@pyqtSlot(QPushButton)
+	def slot_move_up(self, button):
+		self.grid.move_row_up(self.get_button_row(button))
+		self.update_ui()
 
-	@pyqtSlot(QWidget, QWidget, QWidget)
-	def slot_delete(self, label, sample_track, button_widget):
-		self.instrument.remove_sample(sample_track.sample.path)
-		self.path_labels.remove(label)
-		self.tracks.remove(sample_track)
-		self.button_tracks.remove(button_widget)
-		self.enab_updown_buttons()
+	@pyqtSlot(QPushButton)
+	def slot_move_down(self, button):
+		self.grid.move_row_down(self.get_button_row(button))
+		self.update_ui()
 
-	def enab_updown_buttons(self):
-		self.sld_pan.setEnabled(bool(self.button_tracks))
-		if bool(self.button_tracks):
-			self.button_tracks[0].up_button.setEnabled(False)
-			self.button_tracks[0].up_button.setIcon(ButtonsTrack.icon_up_disabled)
-			for button_track in self.button_tracks[1:]:
+	@pyqtSlot(QPushButton)
+	def slot_delete(self, button):
+		row = self.get_button_row(button)
+		velo_graph = self.grid.itemAtPosition(row, COL_GRAPH).widget()
+		self.instrument.remove_sample(velo_graph.sample.path)
+		self.grid.delete_row(row)
+		self.slot_value_changed()
+		self.update_ui()
+
+	def update_ui(self):
+		frames = self.button_frames()
+		has_samples = bool(frames)
+		self.sld_pan.setEnabled(has_samples)
+		self.spread_button.setEnabled(has_samples)
+		self.chk_crossfade.setEnabled(has_samples)
+		self.chk_snap.setEnabled(has_samples)
+		self.sld_pan.setEnabled(has_samples)
+		self.sample_count_label.setEnabled(has_samples)
+		self.sample_count_label.setText(
+			'[1 sample]' if len(frames) == 1 else f'[{len(frames)} samples]')
+		if has_samples:
+			frames[0].up_button.setEnabled(False)
+			frames[0].up_button.setIcon(self.icon_up_disabled)
+			for button_track in frames[1:]:
 				button_track.up_button.setEnabled(True)
-				button_track.up_button.setIcon(ButtonsTrack.icon_up_enabled)
-			for button_track in self.button_tracks[:-1]:
+				button_track.up_button.setIcon(self.icon_up_enabled)
+			for button_track in frames[:-1]:
 				button_track.down_button.setEnabled(True)
-				button_track.down_button.setIcon(ButtonsTrack.icon_down_enabled)
-			self.button_tracks[-1].down_button.setEnabled(False)
-			self.button_tracks[-1].down_button.setIcon(ButtonsTrack.icon_down_disabled)
+				button_track.down_button.setIcon(self.icon_down_enabled)
+			frames[-1].down_button.setEnabled(False)
+			frames[-1].down_button.setIcon(self.icon_down_disabled)
 
 	def find_overlaps(self):
 		self.clear_overlaps()
-		for t in combinations(self.tracks, 2):
-			overlap = t[0].overlap(t[1])
+		tracks = self.velo_graphs()
+		for tup in combinations(tracks, 2):
+			overlap = tup[0].overlap(tup[1])
 			if overlap:
-				t[0].overlaps.append(overlap)
-				t[1].overlaps.append(overlap)
-		for sample_track in self.tracks:
-			sample_track.update_velcurves()
+				tup[0].overlaps.append(overlap)
+				tup[1].overlaps.append(overlap)
+		for velo_graph in tracks:
+			velo_graph.update_velcurves()
 
 	def clear_overlaps(self):
-		for sample_track in self.tracks:
-			sample_track.overlaps = []
+		for velo_graph in self.velo_graphs():
+			velo_graph.overlaps = []
 
 
 #  end kitstarter/gui/samples_widget.py

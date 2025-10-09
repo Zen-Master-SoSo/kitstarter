@@ -10,7 +10,6 @@ import sys, logging
 from PyQt5.QtCore import	pyqtSlot
 from PyQt5.QtWidgets import	QApplication, QDialog, QVBoxLayout, QPushButton
 
-from kitstarter import set_application_style
 from kitstarter.starter_kits import StarterKit
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
 
@@ -41,6 +40,7 @@ class TestWindow(QDialog):
 		self.add_button.clicked.connect(self.slot_add_btn_clicked)
 		lo.addWidget(self.add_button)
 		self.setLayout(lo)
+		self.resize(600, 200)
 
 	@pyqtSlot()
 	def slot_add_btn_clicked(self):
@@ -68,7 +68,6 @@ if __name__ == "__main__":
 		format = "[%(filename)24s:%(lineno)-4d] %(levelname)-8s %(message)s"
 	)
 	app = QApplication([])
-	set_application_style()
 	dialog = TestWindow()
 	dialog.exec_()
 	sys.exit(0)
