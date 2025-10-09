@@ -572,7 +572,7 @@ class SamplesWidget(QWidget):
 			self.grid.delete_row(self.grid.inhabited_row_indexes()[1])
 		self.instrument = instrument
 		with SigBlock(self.sld_pan):
-			self.sld_pan.setValue(int(self.instrument.pan * 100))
+			self.sld_pan.setValue(int(self.instrument.pan))
 		for sample in self.instrument.samples.values():
 			self._add_sample(sample)
 		self.update_ui()
@@ -722,7 +722,7 @@ class SamplesWidget(QWidget):
 
 	@pyqtSlot(int)
 	def slot_pan_changed(self, value):
-		self.instrument.pan = value / 100
+		self.instrument.pan = value
 		self.slot_value_changed()
 
 	@pyqtSlot()
@@ -798,7 +798,6 @@ class SamplesWidget(QWidget):
 	def update_ui(self):
 		frames = self.button_frames()
 		has_samples = bool(frames)
-		self.sld_pan.setEnabled(has_samples)
 		self.spread_button.setEnabled(has_samples)
 		self.chk_crossfade.setEnabled(has_samples)
 		self.chk_snap.setEnabled(has_samples)

@@ -64,16 +64,15 @@ class MainWindow(QMainWindow):
 		# Setup JackConnectionManager
 		self.conn_man = JackConnectionManager()
 		self.conn_man.on_error(self.jack_error)
-		self.conn_man.on_xrun(self.jack_xrun)
 		self.conn_man.on_shutdown(self.jack_shutdown)
 		self.conn_man.on_client_registration(self.jack_client_registration)
 		self.conn_man.on_port_registration(self.jack_port_registration)
 		# Setup tempfile, synth, audio player, pindb
-		self.pindb = PinDatabase()
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.synth = JackLiquidSFZ(self.tempfile)
 		self.audio_player = None	# Instantiated after initial paint delay
-		# Startup paths
+		self.pindb = PinDatabase()
+		# Setup tree browser
 		root_path = settings().value(KEY_FILES_ROOT, QDir.homePath())
 		current_path = settings().value(KEY_FILES_CURRENT, QDir.homePath())
 		self.files_model = QFileSystemModel()
@@ -163,9 +162,6 @@ class MainWindow(QMainWindow):
 
 	def jack_error(self, error_message):
 		logging.error('JACK ERROR: %s', error_message)
-
-	def jack_xrun(self, xruns):
-		pass
 
 	def jack_shutdown(self):
 		logging.error('JACK is shutting down')
