@@ -77,13 +77,13 @@ def _geometry_key(widget):
 	"""
 	Automatic QSettings key generated from class name.
 	"""
-	return f'{type(widget).__name__}/geometry'
+	return f'{widget.__class__.__name__}/geometry'
 
 def _splitter_geometry_key(widget, splitter):
 	"""
 	Automatic QSettings key generated from class name.
 	"""
-	return f'{type(widget).__name__}/{splitter.objectName()}/geometry'
+	return f'{widget.__class__.__name__}/{splitter.objectName()}/geometry'
 
 QWidget.restore_geometry = _restore_geometry
 QWidget.save_geometry = _save_geometry

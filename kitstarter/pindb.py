@@ -2,13 +2,21 @@
 #
 #  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
-import os, logging, re
-from operator import attrgetter
+"""
+Provides PinDatabase class - an abstraction over an sqlite database which keeps
+track of samples on your hard drive and which instrument(s) thay have been
+"pinned" to.
+"""
+import os, logging
 from sqlite3 import connect
 from appdirs import user_config_dir
 
 
 class PinDatabase():
+	"""
+	An abstraction over an sqlite database which keeps track of samples on your
+	hard drive and which instrument(s) thay have been "pinned" to.
+	"""
 
 	instance = None		# Enforce singleton
 	conn = None

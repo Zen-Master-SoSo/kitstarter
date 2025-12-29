@@ -2,7 +2,10 @@
 #
 #  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
-import os, logging, platform, subprocess, tempfile
+"""
+Provides MainWindow of the kitstarter application.
+"""
+import os, logging, tempfile
 from os.path import join, dirname, basename, abspath, splitext
 from functools import lru_cache
 from collections import namedtuple
@@ -39,6 +42,9 @@ MESSAGE_TIMEOUT = 3000
 
 
 class MainWindow(QMainWindow):
+	"""
+	User interface of the kitstarter application.
+	"""
 
 	sig_ports_complete = pyqtSignal()	# \
 	sig_sources_changed = pyqtSignal()	#  Used to decouple JackConnectionManager callbacks
@@ -369,7 +375,7 @@ class MainWindow(QMainWindow):
 	# file tree / sample display management
 
 	@pyqtSlot(int)
-	def slot_instrument_changed(self, index):
+	def slot_instrument_changed(self, _):
 		self.chk_filter_instrument.setText('Filter "{}"'.format(
 			self.lst_instruments.currentItem().text()))
 		if self.chk_filter_instrument.isChecked():

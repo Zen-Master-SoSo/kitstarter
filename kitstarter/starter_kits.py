@@ -6,12 +6,11 @@
 """
 Provides Drumkit SFZ wrapper which allows import / copy operations.
 """
-import logging
 from os.path import abspath, basename
 from collections import namedtuple
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_NAMES
 from sfzen import SFZ
-from sfzen.drumkits import Drumkit, PITCH_GROUPS, pitch_id_tuple, iter_pitch_by_group
+from sfzen.drumkits import PITCH_GROUPS, pitch_id_tuple, iter_pitch_by_group
 
 Velcurve = namedtuple('Velcurve', ['velocity', 'amplitude'])
 
@@ -50,7 +49,7 @@ class StarterKit:
 							starter_sample._tune = opcodes['tune'].value
 						for code, opcode in region.opcodes.items():
 							if code.startswith('amp_velcurve'):
-								starter_sample._velcurves.append(Velcurve(int(code[13:]), float(opcode.value)))
+								starter_sample.velcurves.append(Velcurve(int(code[13:]), float(opcode.value)))
 						instrument.samples[starter_sample.path] = starter_sample
 
 	def samples(self):
@@ -147,6 +146,9 @@ class StarterInstrument:
 
 
 class StarterSample:
+	"""
+	Contains basic sample info which is compiled into an .sfz opcode.
+	"""
 
 	def __init__(self, path, pitch):
 		self.path = abspath(path)
@@ -156,7 +158,7 @@ class StarterSample:
 		self._volume = 0.0
 		self._transpose = 0
 		self._tune = 0
-		self._velcurves = []
+		self.velcurves = []
 		self.dirty = False
 
 	def __str__(self):
@@ -207,15 +209,6 @@ class StarterSample:
 		self._tune = value
 		self.dirty = True
 
-	@property
-	def velcurves(self):
-		return self._velcurves
-
-	@velcurves.setter
-	def velcurves(self, value):
-		self._velcurves = value
-		self.dirty = True
-
 	def write(self, stream):
 		stream.write('<region>\n')
 		stream.write(f'sample={self.path}\n')
@@ -225,7 +218,7 @@ class StarterSample:
 			stream.write(f'lovel={self._lovel}\n')
 		if self._hivel < 127:
 			stream.write(f'hivel={self._hivel}\n')
-		for point in self._velcurves:
+		for point in self.velcurves:
 			stream.write(f'amp_velcurve_{point.velocity}={point.amplitude:.1f}\n')
 		if self._transpose != 0:
 			stream.write(f'transpose={self._transpose}\n')

@@ -2,6 +2,9 @@
 #
 #  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
+"""
+Provides classes used inside a Qt dialog for editing a multi-sample instrument.
+"""
 import logging
 from os.path import join, basename
 from math import sqrt
@@ -161,23 +164,23 @@ class VelocityGraph(_Track):
 			if self.hover_point_index is None:
 				self.range_change_event(event)
 			else:
-				self.sample._velcurves[self.hover_point_index] = Velcurve(
-					self.sample._velcurves[self.hover_point_index].velocity \
+				self.sample.velcurves[self.hover_point_index] = Velcurve(
+					self.sample.velcurves[self.hover_point_index].velocity \
 						if event.modifiers() & Qt.ControlModifier \
 						else self.x2v(event.x()),
-					self.sample._velcurves[self.hover_point_index].amplitude \
+					self.sample.velcurves[self.hover_point_index].amplitude \
 						if event.modifiers() & Qt.ShiftModifier \
 						else self.y2a(event.y())
 				)
 				self.update()
-		elif event.buttons() == Qt.NoButton and self.sample._velcurves:
+		elif event.buttons() == Qt.NoButton and self.sample.velcurves:
 			near_points = [ (
 				sqrt(
 					pow(abs(self.v2x(velcurve.velocity) - event.x()), 2) +
 					pow(abs(self.a2y(velcurve.amplitude) - event.y()), 2)
 				),
 				index
-			) for index, velcurve in enumerate(self.sample._velcurves) ]
+			) for index, velcurve in enumerate(self.sample.velcurves) ]
 			near_points.sort()
 			hover_point_index = near_points[0][1] if near_points[0][0] < POLAR_SNAP_RANGE else None
 			if hover_point_index != self.hover_point_index:
@@ -192,7 +195,7 @@ class VelocityGraph(_Track):
 				self.hover_point_grabbed = True
 				self.update()
 
-	def mouseReleaseEvent(self, event):
+	def mouseReleaseEvent(self, _):
 		if self.hover_point_grabbed:
 			self.hover_point_grabbed = False
 			self.sig_value_changed.emit()
@@ -240,8 +243,8 @@ class VelocityGraph(_Track):
 			# line across to lovel:
 			points.append(QPointF(self.v2x(self.lovel), self.rect().bottom()))
 
-		if self.sample._velcurves:
-			for velcurve in self.sample._velcurves:
+		if self.sample.velcurves:
+			for velcurve in self.sample.velcurves:
 				points.append(QPointF(self.v2x(velcurve.velocity), self.a2y(velcurve.amplitude)))
 		else:
 			points.append(QPointF(self.v2x(self.lovel), self.v2y(self.lovel)))
@@ -264,7 +267,7 @@ class VelocityGraph(_Track):
 				painter.drawLine(start, end)
 				start = end
 
-		for index, velcurve in enumerate(self.sample._velcurves):
+		for index, velcurve in enumerate(self.sample.velcurves):
 			if self.hover_point_index == index:
 				painter.setPen(self.velcurve_pen_grabbed \
 					if self.hover_point_grabbed else self.velcurve_pen_hover)
@@ -325,7 +328,7 @@ class VelocityGraph(_Track):
 			if lovel < hivel else None
 
 	def update_velcurves(self):
-		velcurves = []
+		self.sample.velcurves = []
 		if self.overlaps:
 			self.overlaps.sort(key = lambda overlap: overlap.lovel)
 			lo_overlap = self.overlaps.pop(0) if self.overlaps[0].lovel == self.lovel else None
@@ -338,21 +341,21 @@ class VelocityGraph(_Track):
 			else:
 				mid_overlaps = []
 			if lo_overlap:
-				velcurves.append(Velcurve(self.lovel, 0.0))
-				velcurves.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
+				self.sample.velcurves.append(Velcurve(self.lovel, 0.0))
+				self.sample.velcurves.append(Velcurve(lo_overlap.hivel, self.v2a(lo_overlap.hivel)))
 			else:
-				velcurves.append(Velcurve(self.lovel, self.v2a(self.lovel)))
+				self.sample.velcurves.append(Velcurve(self.lovel, self.v2a(self.lovel)))
 			for mid_overlap in mid_overlaps:
-				velcurves.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
+				self.sample.velcurves.append(Velcurve(mid_overlap.lovel, self.v2a(mid_overlap.lovel)))
 				mid_overlap_center = mid_overlap.lovel + round((mid_overlap.hivel -  mid_overlap.lovel) / 2)
-				velcurves.append(Velcurve(mid_overlap_center, 0.0))
-				velcurves.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
+				self.sample.velcurves.append(Velcurve(mid_overlap_center, 0.0))
+				self.sample.velcurves.append(Velcurve(mid_overlap.hivel, self.v2a(mid_overlap.hivel)))
 			if hi_overlap:
-				velcurves.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
-				velcurves.append(Velcurve(self.hivel, 0.0))
+				self.sample.velcurves.append(Velcurve(hi_overlap.lovel, self.v2a(hi_overlap.lovel)))
+				self.sample.velcurves.append(Velcurve(self.hivel, 0.0))
 			else:
-				velcurves.append(Velcurve(self.hivel, self.v2a(self.hivel)))
-		self.sample.velcurves = velcurves
+				self.sample.velcurves.append(Velcurve(self.hivel, self.v2a(self.hivel)))
+		self.sample.dirty = True
 		self.update()
 
 
@@ -686,7 +689,7 @@ class SamplesWidget(QWidget):
 
 	def velo_graphs(self):
 		"""
-		Returns a list of VelocityGraph
+		Returns a list of VelocityGraph objects.
 		"""
 		# Exclude first row (scale) and last row (pad)
 		return self.grid.column(COL_GRAPH)[1:-1]
@@ -729,9 +732,9 @@ class SamplesWidget(QWidget):
 	def slot_spread(self):
 		tracks = self.velo_graphs()
 		spread = 127 / len(tracks)
-		for i in range(len(tracks)):
-			tracks[i].lovel = round(i * spread)
-			tracks[i].hivel = round((i + 1) * spread)
+		for i, track in enumerate(tracks):
+			track.lovel = round(i * spread)
+			track.hivel = round((i + 1) * spread)
 		self.find_overlaps()
 		self.slot_value_changed()
 
