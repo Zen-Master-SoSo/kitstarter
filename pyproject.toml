@@ -10,7 +10,7 @@ dependencies = [
 	"soso_qt_extras >= 1.6.0",
 	"conn_jack",
 	"midi_notes",
-	"sfzen >= 1.2.0",
+	"sfzen >= 1.2.0, <= 2.0.0",
 	"liquiphy",
 	"soundfile",
 	"jack_audio_player"
