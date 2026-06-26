@@ -463,7 +463,8 @@ class SamplesWidget(QWidget):
 
 	def __init__(self, parent, instrument):
 		super().__init__(parent)
-		self.instrument = instrument
+		self.initial_instrument = instrument
+		self.instrument = self.initial_instrument
 
 		# Setup common icons / fonts
 		self.small_font = self.font()
@@ -569,6 +570,14 @@ class SamplesWidget(QWidget):
 		self.sld_pan.valueChanged.connect(self.slot_pan_changed)
 		self.pad.sig_mouse_press.connect(self.slot_mouse_press)
 		self.pad.sig_mouse_release.connect(self.slot_mouse_release)
+
+	def clear(self):
+		while self.grid.inhabited_row_count() > 2:
+			self.grid.delete_row(self.grid.inhabited_row_indexes()[1])
+		with SigBlock(self.sld_pan):
+			self.sld_pan.setValue(0)
+		self.instrument = self.initial_instrument
+		self.update_ui()
 
 	def load_instrument(self, instrument):
 		while self.grid.inhabited_row_count() > 2:

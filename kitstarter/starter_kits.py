@@ -25,18 +25,17 @@ class StarterKit:
 
 	def __init__(self, filename = None):
 		self.filename = filename
-		self.instruments = { pitch:StarterInstrument(pitch) \
+		self.instruments = {
+			pitch:StarterInstrument(pitch)
 			for pitch in MIDI_DRUM_IDS }
 		if self.filename:
 			sfz = SFZ(self.filename)
 			for pitch, instrument in self.instruments.items():
 				for region in sfz.regions_for(key = pitch, lokey = pitch, hikey = pitch):
-					opcodes = region.inherited_opcodes()
-					if 'pan' in opcodes:
-						instrument._pan = opcodes['pan'].value
-					for region_sample in region.samples():
+					instrument.pan = region.pan or 0
+					if region_sample := region.sample:
 						starter_sample = StarterSample(region_sample.abspath, pitch)
-						opcodes = region_sample.parent.inherited_opcodes()
+						opcodes = region.inherited_opcodes()
 						if 'lovel' in opcodes:
 							starter_sample._lovel = opcodes['lovel'].value
 						if 'hivel' in opcodes:
@@ -47,10 +46,11 @@ class StarterKit:
 							starter_sample._transpose = opcodes['transpose'].value
 						if 'tune' in opcodes:
 							starter_sample._tune = opcodes['tune'].value
-						for code, opcode in region.opcodes.items():
+						for code, opcode in region.opcodes().items():
 							if code.startswith('amp_velcurve'):
 								starter_sample.velcurves.append(Velcurve(int(code[13:]), float(opcode.value)))
 						instrument.samples[starter_sample.path] = starter_sample
+				instrument.clear_dirty()
 
 	def samples(self):
 		for instrument in self.instruments:
