@@ -7,8 +7,8 @@ Test the SamplesWidget using a window.
 """
 import sys, logging
 
-from PyQt5.QtCore import	pyqtSlot
-from PyQt5.QtWidgets import	QApplication, QDialog, QVBoxLayout, QPushButton
+from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout, QPushButton
 
 from kitstarter.starter_kits import StarterKit
 from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources

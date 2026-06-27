@@ -1,6 +1,21 @@
-#  kitstarter/gui/samples_widget.py
+#  kitstarter/kitstarter/gui/samples_widget.py
 #
-#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
+#  Copyright 2026 Leon Dionne <ldionne@dridesign.sh.cn>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
 #
 """
 Provides classes used inside a Qt dialog for editing a multi-sample instrument.
@@ -12,11 +27,11 @@ from functools import partial
 from itertools import combinations
 from collections import namedtuple
 
-from PyQt5.QtCore import	Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
-from PyQt5.QtGui import		QPainter, QColor, QPen, QBrush, QIcon
-from PyQt5.QtWidgets import	QWidget, QSizePolicy, QLayout, QVBoxLayout, QHBoxLayout, \
-							QCheckBox, QPushButton, QLabel, QSpinBox, QDoubleSpinBox, \
-							QSlider, QFrame
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPointF, QRectF, QSize, QTimer
+from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QIcon
+from PyQt5.QtWidgets import (
+	QWidget, QSizePolicy, QLayout, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton,
+	QLabel, QSpinBox, QDoubleSpinBox, QSlider, QFrame )
 
 from qt_extras import SigBlock
 from qt_extras.shuffle_grid import ShuffleGrid
@@ -79,6 +94,7 @@ class _Track(QWidget):
 		super().__init__(parent)
 		self.v2x_scale = None
 
+	# pylint: disable-next = invalid-name
 	def resizeEvent(self, _):
 		self.v2x_scale = self.width() / 127
 
@@ -156,9 +172,11 @@ class VelocityGraph(_Track):
 	def __str__(self):
 		return f'VelocityGraph for "{self.sample}"'
 
+	# pylint: disable-next = invalid-name
 	def sizeHint(self):
 		return QSize(TRACK_WIDTH, TRACK_HEIGHT)
 
+	# pylint: disable-next = invalid-name
 	def mouseMoveEvent(self, event):
 		if event.buttons() == Qt.LeftButton:
 			if self.hover_point_index is None:
@@ -187,6 +205,7 @@ class VelocityGraph(_Track):
 				self.hover_point_index = hover_point_index
 				self.update()
 
+	# pylint: disable-next = invalid-name
 	def mousePressEvent(self, event):
 		if event.buttons() == Qt.LeftButton:
 			if self.hover_point_index is None:
@@ -195,6 +214,7 @@ class VelocityGraph(_Track):
 				self.hover_point_grabbed = True
 				self.update()
 
+	# pylint: disable-next = invalid-name
 	def mouseReleaseEvent(self, _):
 		if self.hover_point_grabbed:
 			self.hover_point_grabbed = False
@@ -222,6 +242,7 @@ class VelocityGraph(_Track):
 		self.sig_range_changed.emit(self, feature)
 		self.update()
 
+	# pylint: disable-next = invalid-name
 	def paintEvent(self, _):
 		painter = QPainter(self)
 
@@ -391,6 +412,7 @@ class Scale(_Track):
 		self.label_font.setItalic(True)
 		self.label_font.setPixelSize(11)
 
+	# pylint: disable-next = invalid-name
 	def paintEvent(self, _):
 		painter = QPainter(self)
 		painter.setFont(self.label_font)
@@ -431,16 +453,19 @@ class Pad(_Track):
 		self.setMinimumHeight(TRACK_HEIGHT)
 		self.mouse_pressed = False
 
+	# pylint: disable-next = invalid-name
 	def mousePressEvent(self, event):
 		self.sig_mouse_press.emit(self.x2v(event.x()))
 		self.mouse_pressed = True
 		self.update()
 
+	# pylint: disable-next = invalid-name
 	def mouseReleaseEvent(self, _):
 		self.sig_mouse_release.emit()
 		self.mouse_pressed = False
 		self.update()
 
+	# pylint: disable-next = invalid-name
 	def paintEvent(self, _):
 		painter = QPainter(self)
 		painter.setPen(self.pen)
@@ -845,4 +870,4 @@ class SamplesWidget(QWidget):
 			velo_graph.overlaps = []
 
 
-#  end kitstarter/gui/samples_widget.py
+#  end kitstarter/kitstarter/gui/samples_widget.py

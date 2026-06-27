@@ -20,7 +20,7 @@ dependencies = [
 Home = "https://github.com/Zen-Master-SoSo/kitstarter"
 
 [project.scripts]
-kitstarter = "kitstarter.__init__:main"
+kitstarter = "kitstarter.__main__:main"
 
 [build-system]
 requires = ["flit_core >=3.2,<4"]
