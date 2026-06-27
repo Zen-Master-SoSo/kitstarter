@@ -31,6 +31,7 @@ from kitstarter import (
 class FilesExplorer(QWidget):
 
 	sig_selection_changed = pyqtSignal(str)
+	sig_use_samples = pyqtSignal(list)
 
 	def __init__(self, parent):
 		super().__init__(parent)
@@ -54,6 +55,8 @@ class FilesExplorer(QWidget):
 		self.tree_files.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.tree_files.customContextMenuRequested.connect(self.slot_files_context_menu)
 
+	def set_current_instrument(self, instrument):
+		self.current_instrument = instrument
 
 	@pyqtSlot(QPoint)
 	def slot_files_context_menu(self, position):
@@ -72,8 +75,7 @@ class FilesExplorer(QWidget):
 			pitch = self.current_instrument.pitch
 			if all(splitext(path)[-1] in SAMPLE_EXTENSIONS for path in paths):
 				def use_samples():
-					for path in paths:
-						self.stk_samples_widgets.currentWidget().add_sample(path)
+					self.sig_use_samples.emit(paths)
 				action = QAction(f'Use for "{self.current_instrument.name}"', self)
 				action.triggered.connect(use_samples)
 				menu.addAction(action)

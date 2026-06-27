@@ -1,4 +1,4 @@
-#  kitstarter/kitstarter/gui/samples_widget.py
+#  kitstarter/kitstarter/gui/instrument_widget.py
 #
 #  Copyright 2026 Leon Dionne <ldionne@dridesign.sh.cn>
 #
@@ -474,7 +474,7 @@ class Pad(_Track):
 		painter.end()
 
 
-class SamplesWidget(QWidget):
+class InstrumentWidget(QWidget):
 	"""
 	A widget which displays the lovel, hivel range and amp_veltrack points of .sfz
 	regions associated with a sample. Modifications to the region are done with
@@ -870,4 +870,4 @@ class SamplesWidget(QWidget):
 			velo_graph.overlaps = []
 
 
-#  end kitstarter/kitstarter/gui/samples_widget.py
+#  end kitstarter/kitstarter/gui/instrument_widget.py

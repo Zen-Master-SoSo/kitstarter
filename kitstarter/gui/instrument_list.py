@@ -42,10 +42,6 @@ class InstrumentList(QWidget):
 		self.lst_instruments.setFixedWidth(180)
 		self.icon_complete = QIcon(join(PACKAGE_DIR, 'res', 'inst-complete.svg'))
 		self.icon_incomplete = QIcon(join(PACKAGE_DIR, 'res', 'inst-incomplete.svg'))
-		self.icon_sample_okay = QIcon(join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
-		self.icon_sample_mismatch = QIcon(join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
-		self.icon_sample_pinned = QIcon(join(PACKAGE_DIR, 'res', 'pin.svg'))
-		self.icon_sample_err = QIcon.fromTheme('dialog-warning')
 		for pitch in iter_pitch_by_group():
 			list_item = QListWidgetItem(self.lst_instruments)
 			list_item.setText(MIDI_DRUM_NAMES[pitch])

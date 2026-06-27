@@ -24,17 +24,16 @@ import logging
 from os.path import join, dirname, abspath
 from functools import lru_cache
 from PyQt5 import uic
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QTimer
+from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
 from qt_extras import ShutUpQT
 from sfzen.drumkits import Drumkit, iter_pitch_by_group
 from kitstarter import get_setting, set_setting, APPLICATION_NAME, KEY_RECENT_FOLDER
-from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
+from kitstarter.gui.instrument_widget import InstrumentWidget, init_paint_resources
 from kitstarter.gui.samples_explorer import SamplesExplorer
 from kitstarter.gui.files_explorer import FilesExplorer
 from kitstarter.gui.instrument_list import InstrumentList
-from kitstarter.starter_kits import StarterKit, StarterInstrument
-from kitstarter.pindb import PinDatabase
+from kitstarter.starter_kits import StarterKit
 from kitstarter.jack_audio import Audio
 
 SYNTH_NAME = 'liquidsfz'
@@ -53,22 +52,21 @@ class MainWindow(QMainWindow):
 			uic.loadUi(join(dirname(__file__), 'main_window.ui'), self)
 		self.sfz_filename = filename
 		self.kit = StarterKit()
-		self.pindb = PinDatabase()
 		self.audio = Audio()
 
 		# Setup stacked samples widget
 		for pitch in iter_pitch_by_group():
-			samples_widget = SamplesWidget(self, self.kit.instrument(pitch))
-			samples_widget.sig_updating.connect(self.slot_updating)
-			samples_widget.sig_updated.connect(self.slot_updated)
-			samples_widget.sig_mouse_press.connect(self.slot_trackpad_pressed)
-			samples_widget.sig_mouse_release.connect(self.slot_trackpad_release)
-			self.stk_samples_widgets.addWidget(samples_widget)
+			instrument_widget = InstrumentWidget(self, self.kit.instrument(pitch))
+			instrument_widget.sig_updating.connect(self.slot_updating)
+			instrument_widget.sig_updated.connect(self.slot_updated)
+			instrument_widget.sig_mouse_press.connect(self.slot_trackpad_pressed)
+			instrument_widget.sig_mouse_release.connect(self.slot_trackpad_release)
+			self.stk_instrument_widget.addWidget(instrument_widget)
 		# Remove first (placeholder) widget from QStackedWidget
-		widget = self.stk_samples_widgets.widget(0)
-		self.stk_samples_widgets.removeWidget(widget)
+		widget = self.stk_instrument_widget.widget(0)
+		self.stk_instrument_widget.removeWidget(widget)
 		widget.deleteLater()
-		self.stk_samples_widgets.currentChanged.connect(
+		self.stk_instrument_widget.currentChanged.connect(
 			self.slot_current_sample_widget_changed)
 
 		# Setup InstrumentList
@@ -80,11 +78,11 @@ class MainWindow(QMainWindow):
 		self.frm_inst_list_placeholder.deleteLater()
 		del self.frm_inst_list_placeholder
 		self.instrument_list.sig_row_changed.connect(
-			self.stk_samples_widgets.setCurrentIndex)
+			self.stk_instrument_widget.setCurrentIndex)
 
 		# Setup FilesExplorer
 		self.files_explorer = FilesExplorer(self)
-		self.bottom_right_layout.replaceWidget(
+		self.right_layout.replaceWidget(
 			self.frm_file_expl_placeholder,
 			self.files_explorer)
 		self.frm_file_expl_placeholder.setVisible(False)
@@ -93,12 +91,13 @@ class MainWindow(QMainWindow):
 
 		# Setup SamplesExplorer
 		self.samples_explorer = SamplesExplorer(self)
-		self.bottom_right_layout.replaceWidget(
+		self.right_layout.replaceWidget(
 			self.frm_samp_expl_placeholder,
 			self.samples_explorer)
 		self.frm_samp_expl_placeholder.setVisible(False)
 		self.frm_samp_expl_placeholder.deleteLater()
 		del self.frm_samp_expl_placeholder
+		self.samples_explorer.sig_use_samples.connect(self.slot_use_samples)
 
 		# Setup statusbar
 		self.cmb_midi_srcs = QComboBox(self.statusbar)
@@ -150,8 +149,8 @@ class MainWindow(QMainWindow):
 	# Load / save
 
 	def iterate_sample_widgets(self):
-		for index in range(self.stk_samples_widgets.count()):
-			yield self.stk_samples_widgets.widget(index)
+		for index in range(self.stk_instrument_widget.count()):
+			yield self.stk_instrument_widget.widget(index)
 
 	@pyqtSlot()
 	def slot_new(self):
@@ -209,10 +208,27 @@ class MainWindow(QMainWindow):
 		self.update_window_title()
 
 	@pyqtSlot(int)
-	def slot_current_sample_widget_changed(self, index):
-		instrument = self.stk_samples_widgets.currentWidget().instrument
+	def slot_current_sample_widget_changed(self, _):
+		"""
+		Instrument selection is made in "self.instrument_list".
+
+		When the selection changes, the InstrumentWidget switches to the corresponding
+		row. When that happens, its "currentChanged" signal triggers this slot.
+		"""
+		instrument = self.stk_instrument_widget.currentWidget().instrument
 		for widget in [self.files_explorer, self.samples_explorer]:
-			widget.current_instrument = instrument
+			widget.set_current_instrument(instrument)
+
+	@pyqtSlot(list)
+	def slot_use_samples(self, paths):
+		"""
+		Emitted from
+			SamplesExplorer.sig_use_samples
+			FilesExplorer.sig_use_samples
+		paths is a list of str
+		"""
+		for path in paths:
+			self.stk_instrument_widget.currentWidget().add_sample(path)
 
 	# -----------------------------------------------------------------
 	# Previews

@@ -1,9 +1,9 @@
-#  kitstarter/gui/samples_widget.py
+#  kitstarter/gui/instrument_widget.py
 #
 #  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 """
-Test the SamplesWidget using a window.
+Test the InstrumentWidget using a window.
 """
 import sys, logging
 
@@ -11,12 +11,12 @@ from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout, QPushButton
 
 from kitstarter.starter_kits import StarterKit
-from kitstarter.gui.samples_widget import SamplesWidget, init_paint_resources
+from kitstarter.gui.instrument_widget import InstrumentWidget, init_paint_resources
 
 
 class TestWindow(QDialog):
 	"""
-	Window with one SamplesWidget used for testing.
+	Window with one InstrumentWidget used for testing.
 	"""
 
 	def __init__(self):
@@ -25,7 +25,7 @@ class TestWindow(QDialog):
 		self.kit = StarterKit()
 		self.instrument = self.kit.instrument('side_stick')
 		lo = QVBoxLayout()
-		self.tracks_widget = SamplesWidget(self, self.instrument)
+		self.tracks_widget = InstrumentWidget(self, self.instrument)
 		self.tracks_widget.sig_updated.connect(self.slot_updated)
 		self.tracks_widget.sig_mouse_press.connect(self.slot_mouse_press)
 		self.tracks_widget.sig_mouse_release.connect(self.slot_mouse_release)
@@ -73,4 +73,4 @@ if __name__ == "__main__":
 	sys.exit(0)
 
 
-#  end kitstarter/gui/samples_widget.py
+#  end kitstarter/gui/instrument_widget.py

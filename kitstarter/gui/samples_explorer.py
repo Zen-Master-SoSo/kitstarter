@@ -21,11 +21,13 @@ import logging
 from os.path import join, dirname, basename, splitext
 from collections import namedtuple
 from PyQt5 import uic
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
 from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidget, QListWidgetItem
 from qt_extras import ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
-from kitstarter import SAMPLE_EXTENSIONS
+from kitstarter import SAMPLE_EXTENSIONS, PACKAGE_DIR
+from kitstarter.pindb import PinDatabase
 
 
 SampleEntry = namedtuple('Sample', ['path', 'pitch', 'sfz_path'])
@@ -36,13 +38,19 @@ class SamplesExplorer(QWidget):
 	sig_directory_selected = pyqtSignal(str)
 	sig_sfz_selected = pyqtSignal(str)
 	sig_sample_clicked = pyqtSignal(str)
+	sig_use_samples = pyqtSignal(list)
 
 
 	def __init__(self, parent):
 		super().__init__(parent)
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'samples_explorer.ui'), self)
+		self.pindb = PinDatabase()
 		self.current_instrument = None
+		self.icon_sample_okay = QIcon(join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
+		self.icon_sample_mismatch = QIcon(join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
+		self.icon_sample_pinned = QIcon(join(PACKAGE_DIR, 'res', 'pin.svg'))
+		self.icon_sample_err = QIcon.fromTheme('dialog-warning')
 		self.chk_filter_instrument.stateChanged.connect(self.slot_filter_checked)
 		self.chk_show_pinned.stateChanged.connect(self.slot_show_pinned_checked)
 		self.chk_show_selected.stateChanged.connect(self.slot_show_selected_checked)
@@ -51,8 +59,8 @@ class SamplesExplorer(QWidget):
 		self.lst_samples.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.lst_samples.customContextMenuRequested.connect(self.slot_samples_context_menu)
 
-	@pyqtSlot(str)
-	def slot_instrument_changed(self, text):
+	def set_current_instrument(self, instrument):
+		self.current_instrument = instrument
 		self.chk_filter_instrument.setText(f'Filter "{text}"')
 		if self.chk_filter_instrument.isChecked():
 			self.update_samples_list()
@@ -109,8 +117,7 @@ class SamplesExplorer(QWidget):
 				menu.addAction(action)
 
 			def use_samples():
-				for entry in entries:
-					self.stk_samples_widgets.currentWidget().add_sample(entry.path)
+				self.sig_use_samples.emit([entry.path for entry in entries])
 			title = 'these samples' if len(entries) > 1 else f'"{basename(entries[0].path)}"'
 			action = QAction(f'Use {title} for "{MIDI_DRUM_NAMES[pitch]}"', self)
 			action.triggered.connect(use_samples)
