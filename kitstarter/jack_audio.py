@@ -21,11 +21,10 @@
 Provides MainWindow of the kitstarter application.
 """
 import os, logging, tempfile
-from itertools import chain
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QTimer
 from soundfile import SoundFile
 from liquiphy import LiquidSFZ
-from conn_jack import JACK_PORT_IS_INPUT, JackConnectionManager, JackConnectError
+from conn_jack import JackConnectionManager, JackConnectError
 from jack_audio_player import JackAudioPlayer
 from kitstarter import get_setting, set_setting, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 

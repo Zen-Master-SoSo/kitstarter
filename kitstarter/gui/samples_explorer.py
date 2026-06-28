@@ -27,8 +27,8 @@ from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
 from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidgetItem
 from qt_extras import SigBlock, ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
-from kitstarter import (set_setting, get_setting, SampleFileInfo,
-	PACKAGE_DIR, KEY_FILTER_INST, KEY_SHOW_SELECTED, KEY_SHOW_PINNED)
+from kitstarter import (
+	set_setting, get_setting, PACKAGE_DIR, KEY_FILTER_INST, KEY_SHOW_SELECTED, KEY_SHOW_PINNED)
 from kitstarter.pindb import PinDatabase
 
 
