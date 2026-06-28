@@ -481,10 +481,10 @@ class InstrumentWidget(QWidget):
 	mouse interaction.
 	"""
 
-	sig_updating = pyqtSignal()
-	sig_updated = pyqtSignal()
-	sig_mouse_press = pyqtSignal(int, int)
-	sig_mouse_release = pyqtSignal(int)
+	sig_updating = pyqtSignal(int)			# Sends pitch of this instrument
+	sig_updated = pyqtSignal(int)			# Sends pitch of this instrument
+	sig_mouse_press = pyqtSignal(int, int)	# Sends pitch, velocity
+	sig_mouse_release = pyqtSignal(int)		# Sends pitch
 
 	def __init__(self, parent, instrument):
 		super().__init__(parent)
@@ -596,8 +596,11 @@ class InstrumentWidget(QWidget):
 		self.pad.sig_mouse_press.connect(self.slot_mouse_press)
 		self.pad.sig_mouse_release.connect(self.slot_mouse_release)
 
+	def has_samples(self):
+		return self.grid.inhabited_row_count() > 2
+
 	def clear(self):
-		while self.grid.inhabited_row_count() > 2:
+		while self.has_samples():
 			self.grid.delete_row(self.grid.inhabited_row_indexes()[1])
 		with SigBlock(self.sld_pan):
 			self.sld_pan.setValue(0)
@@ -605,7 +608,7 @@ class InstrumentWidget(QWidget):
 		self.update_ui()
 
 	def load_instrument(self, instrument):
-		while self.grid.inhabited_row_count() > 2:
+		while self.has_samples():
 			self.grid.delete_row(self.grid.inhabited_row_indexes()[1])
 		self.instrument = instrument
 		with SigBlock(self.sld_pan):

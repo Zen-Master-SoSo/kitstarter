@@ -18,19 +18,21 @@
 #  MA 02110-1301, USA.
 #
 from os.path import join, dirname, splitext
+from functools import lru_cache
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QDir, QItemSelection
 from PyQt5.QtWidgets import (
 	QApplication, QWidget, QFileSystemModel, QAbstractItemView, QMenu, QAction)
 from qt_extras import ShutUpQT
+from sfzen.drumkits import Drumkit
 from kitstarter import (
-	get_setting, set_setting, xdg_open, FILE_FILTERS, SAMPLE_EXTENSIONS,
-	KEY_FILES_ROOT, KEY_FILES_CURRENT)
+	get_setting, set_setting, xdg_open, SampleFileInfo,
+	FILE_FILTERS, SAMPLE_EXTENSIONS, KEY_FILES_ROOT, KEY_FILES_CURRENT)
 
 
 class FilesExplorer(QWidget):
 
-	sig_selection_changed = pyqtSignal(str)
+	sig_selection_changed = pyqtSignal(list)
 	sig_use_samples = pyqtSignal(list)
 
 	def __init__(self, parent):
@@ -72,7 +74,6 @@ class FilesExplorer(QWidget):
 			action = QAction('Copy path' if len(indexes) == 1 else 'Copy paths', self)
 			action.triggered.connect(copy_paths)
 			menu.addAction(action)
-			pitch = self.current_instrument.pitch
 			if all(splitext(path)[-1] in SAMPLE_EXTENSIONS for path in paths):
 				def use_samples():
 					self.sig_use_samples.emit(paths)
@@ -96,7 +97,24 @@ class FilesExplorer(QWidget):
 	def slot_files_selection_changed(self, *_):
 		path = self.files_model.filePath(self.tree_files.currentIndex())
 		set_setting(KEY_FILES_CURRENT, path)
-		self.sig_selection_changed.emit(path)
+		sample_infos = []
+		for index in self.tree_files.selectedIndexes():
+			if self.files_model.isDir(index):
+				continue
+			path = self.files_model.filePath(index)
+			ext = splitext(path)[-1]
+			if ext == '.sfz':
+				drumkit = self.drumkit(path)
+				sample_infos.extend(SampleFileInfo(sample.abspath, instrument.pitch, path, False)
+					for instrument in drumkit.instruments()
+					for sample in instrument.samples())
+			elif ext in SAMPLE_EXTENSIONS:
+				sample_infos.append(SampleFileInfo(path, None, None, False))
+		self.sig_selection_changed.emit(sample_infos)
+
+	@lru_cache
+	def drumkit(self, path):
+		return Drumkit(path)
 
 
 #  end kitstarter/kitstarter/gui/files_explorer.py

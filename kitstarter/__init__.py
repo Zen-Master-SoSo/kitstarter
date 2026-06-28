@@ -23,6 +23,7 @@ kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 import sys, os, argparse, logging, json, glob
 from platform import system
 from subprocess import Popen, run
+from collections import namedtuple
 try:
 	from os import startfile
 except ImportError:
@@ -48,6 +49,9 @@ KEY_FILES_ROOT		= 'FilesRoot'
 KEY_FILES_CURRENT	= 'FilesCurrent'
 KEY_MIDI_SOURCE		= 'MIDISource'
 KEY_AUDIO_SINK		= 'AudioSink'
+
+SampleFileInfo		= namedtuple('SampleInfo', ['path', 'pitch', 'sfz_path', 'pinned'])
+
 
 # -------------------------------------------------------------------
 # Per-user application settings

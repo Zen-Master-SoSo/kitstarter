@@ -25,6 +25,7 @@ track of samples on your hard drive and which instrument(s) thay have been
 import os, logging
 from sqlite3 import connect
 from appdirs import user_config_dir
+from kitstarter import SampleFileInfo
 
 
 class PinDatabase():
@@ -118,53 +119,56 @@ class PinDatabase():
 		"""
 		Inserts the given sample info
 		"""
-		self.conn.execute('INSERT OR IGNORE INTO pinned VALUES (?, ?, ?)', (path, pitch, sfz_path))
+		self.conn.execute("""
+			INSERT OR IGNORE INTO pinned
+			VALUES (?, ?, ?)
+		""", (str(path), pitch, str(sfz_path)))
 		self.conn.commit()
 
 	def all_pinned(self):
 		"""
-		Returns list of tuples (path, pitch, sfz_path).
+		Returns list of SampleFileInfo (path, pitch, sfz_path, pinned).
 		"""
 		cursor = self.conn.execute("""
 			SELECT path, pitch, sfz_path
 			FROM pinned
 		""")
-		return cursor.fetchall()
+		return [SampleFileInfo(*tup, True) for tup in cursor.fetchall()]
 
 	def pinned_by_pitch(self, pitch):
 		"""
-		Returns list of tuples (path, pitch, sfz_path).
+		Returns list of SampleFileInfo (path, pitch, sfz_path, pinned).
 		"""
 		cursor = self.conn.execute("""
 			SELECT path, pitch, sfz_path
 			FROM pinned
 			WHERE pitch = ?
 		""", (pitch, ))
-		return cursor.fetchall()
+		return [SampleFileInfo(*tup, True) for tup in cursor.fetchall()]
 
 	def pinned_by_sfz(self, sfz_path):
 		"""
-		Returns list of tuples (path, pitch, sfz_path).
+		Returns list of SampleFileInfo (path, pitch, sfz_path, pinned).
 		"""
 		cursor = self.conn.execute("""
 			SELECT path, pitch, sfz_path
 			FROM pinned
 			WHERE sfz_path = ?
-		""", (sfz_path, ))
-		return cursor.fetchall()
+		""", (str(sfz_path), ))
+		return [SampleFileInfo(*tup, True) for tup in cursor.fetchall()]
 
 	def is_pinned(self, path):
 		cursor = self.conn.execute("""
 			SELECT path FROM pinned
 			WHERE path = ?
-		""", (path, ))
+		""", (str(path), ))
 		return bool(cursor.fetchall())
 
 	def unpin(self, path):
 		self.conn.execute("""
 			DELETE FROM pinned
 			WHERE path = ?
-		""", (path, ))
+		""", (str(path), ))
 		self.conn.commit()
 
 

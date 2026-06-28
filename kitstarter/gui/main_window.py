@@ -22,12 +22,12 @@ Provides MainWindow of the kitstarter application.
 """
 import logging
 from os.path import join, dirname, abspath
-from functools import lru_cache
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
-from qt_extras import ShutUpQT
-from sfzen.drumkits import Drumkit, iter_pitch_by_group
+from qt_extras import SigBlock, ShutUpQT
+from midi_notes import MIDI_DRUM_NAMES
+from sfzen.drumkits import iter_pitch_by_group
 from kitstarter import get_setting, set_setting, APPLICATION_NAME, KEY_RECENT_FOLDER
 from kitstarter.gui.instrument_widget import InstrumentWidget, init_paint_resources
 from kitstarter.gui.samples_explorer import SamplesExplorer
@@ -66,8 +66,6 @@ class MainWindow(QMainWindow):
 		widget = self.stk_instrument_widget.widget(0)
 		self.stk_instrument_widget.removeWidget(widget)
 		widget.deleteLater()
-		self.stk_instrument_widget.currentChanged.connect(
-			self.slot_current_sample_widget_changed)
 
 		# Setup InstrumentList
 		self.instrument_list = InstrumentList(self)
@@ -77,8 +75,6 @@ class MainWindow(QMainWindow):
 		self.frm_inst_list_placeholder.setVisible(False)
 		self.frm_inst_list_placeholder.deleteLater()
 		del self.frm_inst_list_placeholder
-		self.instrument_list.sig_row_changed.connect(
-			self.stk_instrument_widget.setCurrentIndex)
 
 		# Setup FilesExplorer
 		self.files_explorer = FilesExplorer(self)
@@ -97,7 +93,6 @@ class MainWindow(QMainWindow):
 		self.frm_samp_expl_placeholder.setVisible(False)
 		self.frm_samp_expl_placeholder.deleteLater()
 		del self.frm_samp_expl_placeholder
-		self.samples_explorer.sig_use_samples.connect(self.slot_use_samples)
 
 		# Setup statusbar
 		self.cmb_midi_srcs = QComboBox(self.statusbar)
@@ -108,20 +103,50 @@ class MainWindow(QMainWindow):
 		self.cmb_audio_sinks.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 		self.statusbar.addPermanentWidget(QLabel('Sink:', self.statusbar))
 		self.statusbar.addPermanentWidget(self.cmb_audio_sinks)
-		self.cmb_midi_srcs.currentTextChanged.connect(self.audio.slot_midi_src_selected)
-		self.cmb_audio_sinks.currentTextChanged.connect(self.audio.slot_audio_sink_selected)
 
+		# Connect signals
+		self.stk_instrument_widget.currentChanged.connect(
+			self.slot_current_sample_widget_changed)
+		self.instrument_list.sig_row_changed.connect(
+			self.stk_instrument_widget.setCurrentIndex)
+		self.files_explorer.sig_selection_changed.connect(
+			self.samples_explorer.slot_files_selection_changed)
+		self.files_explorer.sig_use_samples.connect(
+			self.slot_use_samples)
+		self.samples_explorer.sig_use_samples.connect(
+			self.slot_use_samples)
+		self.samples_explorer.sig_play_soundfile.connect(
+			self.audio.slot_play_soundfile)
+		self.samples_explorer.sig_stop_playing.connect(
+			self.audio.slot_stop_playing)
+		self.cmb_midi_srcs.currentTextChanged.connect(
+			self.slot_midi_src_selected)
+		self.cmb_audio_sinks.currentTextChanged.connect(
+			self.slot_audio_sink_selected)
+		self.audio.sig_jack_ready.connect(
+			self.slot_jack_ready)
+		self.audio.sig_jack_ready.connect(
+			self.samples_explorer.slot_jack_ready)
+		self.audio.sig_sources_changed.connect(
+			self.slot_sources_changed)
+		self.audio.sig_sinks_changed.connect(
+			self.slot_sinks_changed)
+
+		# Connect menu actions
 		self.action_new.triggered.connect(self.slot_new)
 		self.action_open.triggered.connect(self.slot_open)
 		self.action_save.triggered.connect(self.slot_save)
 		self.action_save_as.triggered.connect(self.slot_save_as)
 		self.action_exit.triggered.connect(self.close)
+
+		# Prep UI
 		init_paint_resources()
 		self.restore_geometry()
 		QTimer.singleShot(0, self.layout_complete)
 
 	def layout_complete(self):
 		logging.debug('Layout complete')
+		self.slot_current_sample_widget_changed(None)
 		self.files_explorer.layout_complete()
 		if self.sfz_filename:
 			self.load_sfz()
@@ -137,13 +162,6 @@ class MainWindow(QMainWindow):
 	def closeEvent(self, _):
 		self.audio.quit()
 		self.save_geometry()
-
-	# -----------------------------------------------------------------
-	# Cached objects
-
-	@lru_cache
-	def drumkit(self, path):
-		return Drumkit(path)
 
 	# -----------------------------------------------------------------
 	# Load / save
@@ -207,10 +225,14 @@ class MainWindow(QMainWindow):
 		self.kit.clear_dirty()
 		self.update_window_title()
 
+	# -----------------------------------------------------------------
+	# Main three widget slots
+	# (InstrumentList, FilesExplorer, SamplesExplorer)
+
 	@pyqtSlot(int)
 	def slot_current_sample_widget_changed(self, _):
 		"""
-		Instrument selection is made in "self.instrument_list".
+		Instrument selection is made in InstrumentList
 
 		When the selection changes, the InstrumentWidget switches to the corresponding
 		row. When that happens, its "currentChanged" signal triggers this slot.
@@ -231,7 +253,7 @@ class MainWindow(QMainWindow):
 			self.stk_instrument_widget.currentWidget().add_sample(path)
 
 	# -----------------------------------------------------------------
-	# Previews
+	# Audio previews
 
 	@pyqtSlot(int, int)
 	def slot_trackpad_pressed(self, pitch, velocity):
@@ -241,16 +263,62 @@ class MainWindow(QMainWindow):
 	def slot_trackpad_release(self, pitch):
 		self.audio.synth.noteoff(10, pitch) # pylint: disable = no-member
 
-	@pyqtSlot()
-	def slot_updating(self):
-		self.statusbar.showMessage('Preparing to update ...')
-		self.update_instrument_list()
+	@pyqtSlot(int)
+	def slot_updating(self, pitch):
+		"""
+		Triggered by InstrumentWidget.sig_updating
+		"""
+		self.statusbar.showMessage(f'Preparing to update {MIDI_DRUM_NAMES[pitch]}...')
 		self.update_window_title()
 
 	@pyqtSlot()
-	def slot_updated(self):
+	def slot_updated(self, pitch):
 		self.audio.load_kit(self.kit)
-		self.statusbar.showMessage('Updated', MESSAGE_TIMEOUT)
+		index = self.stk_instrument_widget.currentIndex()
+		has_samples = self.stk_instrument_widget.currentWidget().has_samples()
+		self.instrument_list.update_instrument(index, has_samples)
+		self.statusbar.showMessage(f'Updated {MIDI_DRUM_NAMES[pitch]}', MESSAGE_TIMEOUT)
+
+	# -----------------------------------------------------------------
+	# JACK audio / source / sink management
+
+	@pyqtSlot(int)
+	def slot_jack_ready(self, samplerate):
+		self.slot_sources_changed()
+		self.slot_sinks_changed()
+
+	@pyqtSlot()
+	def slot_sources_changed(self):
+		with SigBlock(self.cmb_midi_srcs):
+			self.cmb_midi_srcs.clear()
+			self.cmb_midi_srcs.addItem('')
+			for port in self.audio.conn_man.output_ports():
+				if port.is_midi:
+					self.cmb_midi_srcs.addItem(port.name)
+			if self.audio.src_connected:
+				self.cmb_midi_srcs.setCurrentText(self.audio.midi_src)
+
+	@pyqtSlot()
+	def slot_sinks_changed(self):
+		with SigBlock(self.cmb_audio_sinks):
+			self.cmb_audio_sinks.clear()
+			self.cmb_audio_sinks.addItem('')
+			valid_clients = set(port.client_name \
+				for port in self.audio.conn_man.input_ports() if port.is_audio)
+			for client in valid_clients:
+				self.cmb_audio_sinks.addItem(client)
+			if self.audio.sink_connected:
+				self.cmb_audio_sinks.setCurrentText(self.audio.audio_sink)
+
+	@pyqtSlot(str)
+	def slot_midi_src_selected(self, value):
+		self.audio.midi_src = value
+		self.audio.connect_midi_source()
+
+	@pyqtSlot(str)
+	def slot_audio_sink_selected(self, value):
+		self.audio.audio_sink = value
+		self.audio.connect_audio_sink()
 
 
 #  end kitstarter/kitstarter/gui/main_window.py
