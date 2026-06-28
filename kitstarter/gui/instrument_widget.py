@@ -481,8 +481,8 @@ class InstrumentWidget(QWidget):
 	mouse interaction.
 	"""
 
-	sig_updating = pyqtSignal(int)			# Sends pitch of this instrument
-	sig_updated = pyqtSignal(int)			# Sends pitch of this instrument
+	sig_updating = pyqtSignal(int, bool)	# Sends pitch, has_samples
+	sig_updated = pyqtSignal(int, bool)		# Sends pitch, has_samples
 	sig_mouse_press = pyqtSignal(int, int)	# Sends pitch, velocity
 	sig_mouse_release = pyqtSignal(int)		# Sends pitch
 
@@ -809,12 +809,12 @@ class InstrumentWidget(QWidget):
 
 	@pyqtSlot()
 	def slot_value_changed(self):
-		self.sig_updating.emit()
+		self.sig_updating.emit(self.instrument.pitch, self.has_samples())
 		self.update_timer.start()
 
 	@pyqtSlot()
 	def slot_updated(self):
-		self.sig_updated.emit()
+		self.sig_updated.emit(self.instrument.pitch, self.has_samples())
 
 	@pyqtSlot(QPushButton)
 	def slot_move_up(self, button):

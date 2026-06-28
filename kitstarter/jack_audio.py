@@ -27,7 +27,6 @@ from soundfile import SoundFile
 from liquiphy import LiquidSFZ
 from conn_jack import JACK_PORT_IS_INPUT, JackConnectionManager, JackConnectError
 from jack_audio_player import JackAudioPlayer
-from qt_extras import SigBlock
 from kitstarter import get_setting, set_setting, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 
 
@@ -167,7 +166,7 @@ class Audio(QObject):
 		set_setting(KEY_AUDIO_SINK, value)
 
 	def connect_midi_source(self):
-		if self.synth and self.synth.ports_ready:
+		if self.conn_man and self.synth and self.synth.ports_ready:
 			midi_src = self.midi_src
 			for port_name in self.conn_man.get_port_connections_names(self.synth.input_port):
 				if port_name != midi_src:
@@ -179,7 +178,7 @@ class Audio(QObject):
 					self.src_connected = True
 
 	def connect_audio_sink(self):
-		if self.synth and self.synth.ports_ready:
+		if self.conn_man and self.synth and self.synth.ports_ready:
 			audio_sink = get_setting(KEY_AUDIO_SINK)
 			for output_port in chain(self.synth.output_ports, self.audio_player.output_ports):
 				output_port = self.conn_man.get_port_by_name(output_port.name)

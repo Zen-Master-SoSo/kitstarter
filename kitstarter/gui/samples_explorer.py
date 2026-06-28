@@ -18,16 +18,16 @@
 #  MA 02110-1301, USA.
 #
 import logging
-from os.path import join, dirname, basename, splitext
+from os.path import join, dirname, basename
 from functools import lru_cache
 from soundfile import SoundFile, LibsndfileError
 from PyQt5 import uic
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
-from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidgetItem
 from qt_extras import ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
-from kitstarter import SAMPLE_EXTENSIONS, PACKAGE_DIR, SampleFileInfo
+from kitstarter import PACKAGE_DIR, SampleFileInfo
 from kitstarter.pindb import PinDatabase
 
 
@@ -72,7 +72,6 @@ class SamplesExplorer(QWidget):
 		"""
 		SFZ selection is made in FilesExplorer.
 		"""
-		logging.debug('slot_files_selection_changed: %d items', len(sample_infos))
 		self.file_selection_infos = sample_infos
 		self.update_list()
 
@@ -85,7 +84,7 @@ class SamplesExplorer(QWidget):
 		self.update_list()
 
 	@pyqtSlot(int)
-	def slot_show_selected_checked(self, state):
+	def slot_show_selected_checked(self, _):
 		self.update_list()
 
 	@pyqtSlot(QPoint)
@@ -168,8 +167,8 @@ class SamplesExplorer(QWidget):
 				sample_infos.append(info)
 		if self.current_instrument and self.chk_filter_instrument.isChecked():
 			sample_infos = [ info for info in sample_infos
-				if info.pitch == self.current_instrument.pitch ]
-		sample_infos.sort(key = lambda info: basename(info.path))
+				if info.pitch is None or info.pitch == self.current_instrument.pitch ]
+		sample_infos.sort(key = lambda info: basename(info.path).lower())
 		for info in sample_infos:
 			list_item = QListWidgetItem(self.lst_samples)
 			list_item.setText(basename(info.path))

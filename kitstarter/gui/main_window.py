@@ -95,6 +95,8 @@ class MainWindow(QMainWindow):
 		del self.frm_samp_expl_placeholder
 
 		# Setup statusbar
+		self.lbl_jack_state = QLabel('[not connected]', self)
+		self.statusbar.addPermanentWidget(self.lbl_jack_state)
 		self.cmb_midi_srcs = QComboBox(self.statusbar)
 		self.cmb_midi_srcs.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 		self.statusbar.addPermanentWidget(QLabel('Src:', self.statusbar))
@@ -123,6 +125,8 @@ class MainWindow(QMainWindow):
 			self.slot_midi_src_selected)
 		self.cmb_audio_sinks.currentTextChanged.connect(
 			self.slot_audio_sink_selected)
+		self.audio.sig_jack_down.connect(
+			self.slot_jack_down)
 		self.audio.sig_jack_ready.connect(
 			self.slot_jack_ready)
 		self.audio.sig_jack_ready.connect(
@@ -263,16 +267,16 @@ class MainWindow(QMainWindow):
 	def slot_trackpad_release(self, pitch):
 		self.audio.synth.noteoff(10, pitch) # pylint: disable = no-member
 
-	@pyqtSlot(int)
-	def slot_updating(self, pitch):
+	@pyqtSlot(int, bool)
+	def slot_updating(self, pitch, _):
 		"""
 		Triggered by InstrumentWidget.sig_updating
 		"""
 		self.statusbar.showMessage(f'Preparing to update {MIDI_DRUM_NAMES[pitch]}...')
 		self.update_window_title()
 
-	@pyqtSlot()
-	def slot_updated(self, pitch):
+	@pyqtSlot(int, bool)
+	def slot_updated(self, pitch, has_samples):
 		self.audio.load_kit(self.kit)
 		index = self.stk_instrument_widget.currentIndex()
 		has_samples = self.stk_instrument_widget.currentWidget().has_samples()
@@ -284,8 +288,13 @@ class MainWindow(QMainWindow):
 
 	@pyqtSlot(int)
 	def slot_jack_ready(self, samplerate):
+		self.lbl_jack_state.setText(f'JACK samplerate: {samplerate}')
 		self.slot_sources_changed()
 		self.slot_sinks_changed()
+
+	@pyqtSlot()
+	def slot_jack_down(self):
+		self.lbl_jack_state.setText('JACK is down')
 
 	@pyqtSlot()
 	def slot_sources_changed(self):

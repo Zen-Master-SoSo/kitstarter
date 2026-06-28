@@ -19,7 +19,7 @@
 #
 from os.path import join, dirname
 from PyQt5 import uic
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QListWidgetItem
 from qt_extras import ShutUpQT
@@ -53,10 +53,9 @@ class InstrumentList(QWidget):
 		for row in range(self.lst_instruments.count()):
 			yield self.lst_instruments.item(row)
 
-	def update_instrument(self, index, has_samples):
-		for list_item in self.iter_instrument_list():
-			instrument = self.kit.instrument(list_item.data(Qt.UserRole))
-			list_item.setIcon(self.icon_complete if len(instrument.samples) else self.icon_incomplete)
+	def update_instrument(self, row, has_samples):
+		self.lst_instruments.item(row).setIcon(
+			self.icon_complete if has_samples else self.icon_incomplete)
 
 
 #  end kitstarter/kitstarter/gui/instrument_list.py
