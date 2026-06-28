@@ -193,15 +193,13 @@ class SamplesExplorer(QWidget):
 		if soundfile is None:
 			list_item.setIcon(self.icon_sample_err)
 			list_item.setToolTip('Error reading soundfile')
-		elif self.jack_sample_rate:
-			list_item.setIcon(
-				self.icon_sample_okay
-				if soundfile.samplerate == self.jack_sample_rate
-				else self.icon_sample_mismatch)
-			list_item.setToolTip(f'{entry.path}\nSample rate: {soundfile.samplerate} Hz,\n' +
-				f'(JACK is running at {self.jack_sample_rate} Hz)')
 		else:
-			list_item.setToolTip(f'{entry.path}\nSample rate: {soundfile.samplerate} Hz,\n')
+			if self.jack_sample_rate:
+				list_item.setIcon(
+					self.icon_sample_okay
+					if soundfile.samplerate == self.jack_sample_rate
+					else self.icon_sample_mismatch)
+			list_item.setToolTip(f'{entry.path}\nSample rate: {soundfile.samplerate} Hz')
 
 	def existing_item_from_path(self, path):
 		for item in self.lst_samples.findItems(basename(path), Qt.MatchExactly):

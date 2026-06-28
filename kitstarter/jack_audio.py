@@ -36,7 +36,7 @@ CONNECT_RETRY_INTERVAL = 1776
 
 class Audio(QObject):
 	"""
-	User interface of the kitstarter application.
+	Handles audio, including hosting an instance of liquidsfz, and playing samples.
 	"""
 
 	sig_ports_complete = pyqtSignal()	# \
@@ -135,7 +135,6 @@ class Audio(QObject):
 		Triggered from combo box selection
 		"""
 		self.midi_src = value
-		self.connect_midi_source()
 
 	@pyqtSlot(str)
 	def slot_audio_sink_selected(self, value):
@@ -143,7 +142,6 @@ class Audio(QObject):
 		Triggered from combo box selection
 		"""
 		self.audio_sink = value
-		self.connect_audio_sinks()
 
 	@pyqtSlot()
 	def slot_sources_changed(self):
@@ -168,6 +166,7 @@ class Audio(QObject):
 	@midi_src.setter
 	def midi_src(self, value):
 		set_setting(KEY_MIDI_SOURCE, value)
+		self.connect_midi_source()
 
 	@property
 	def audio_sink(self):
@@ -176,6 +175,7 @@ class Audio(QObject):
 	@audio_sink.setter
 	def audio_sink(self, value):
 		set_setting(KEY_AUDIO_SINK, value)
+		self.connect_audio_sinks()
 
 	def connect_midi_source(self):
 		if self.synth and self.synth.ports_ready:
@@ -226,12 +226,14 @@ class Audio(QObject):
 
 	@pyqtSlot(SoundFile)
 	def slot_play_soundfile(self, soundfile):
-		soundfile.seek(0)
-		self.audio_player.play_python_soundfile(soundfile)
+		if self.audio_player:
+			soundfile.seek(0)
+			self.audio_player.play_python_soundfile(soundfile)
 
 	@pyqtSlot()
 	def slot_stop_playing(self):
-		self.audio_player.stop()
+		if self.audio_player:
+			self.audio_player.stop()
 
 
 class JackLiquidSFZ(LiquidSFZ):

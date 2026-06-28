@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
 
 		# Setup FilesExplorer
 		self.files_explorer = FilesExplorer(self)
-		self.right_layout.replaceWidget(
+		self.explorer_layout.replaceWidget(
 			self.frm_file_expl_placeholder,
 			self.files_explorer)
 		self.frm_file_expl_placeholder.setVisible(False)
@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
 
 		# Setup SamplesExplorer
 		self.samples_explorer = SamplesExplorer(self)
-		self.right_layout.replaceWidget(
+		self.explorer_layout.replaceWidget(
 			self.frm_samp_expl_placeholder,
 			self.samples_explorer)
 		self.frm_samp_expl_placeholder.setVisible(False)
@@ -194,9 +194,9 @@ class MainWindow(QMainWindow):
 
 	def load_sfz(self):
 		self.kit = StarterKit(self.sfz_filename)
-		for widget in self.iterate_sample_widgets():
+		for index, widget in enumerate(self.iterate_sample_widgets()):
 			widget.load_instrument(self.kit.instrument(widget.instrument.pitch))
-		self.update_instrument_list()
+			self.instrument_list.update_instrument(index, widget.has_samples())
 		self.audio.load_kit(self.kit)
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
 		self.update_window_title()
