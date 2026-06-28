@@ -25,9 +25,10 @@ from PyQt5 import uic
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
 from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidgetItem
-from qt_extras import ShutUpQT
+from qt_extras import SigBlock, ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
-from kitstarter import PACKAGE_DIR, SampleFileInfo
+from kitstarter import (set_setting, get_setting, SampleFileInfo,
+	PACKAGE_DIR, KEY_FILTER_INST, KEY_SHOW_SELECTED, KEY_SHOW_PINNED)
 from kitstarter.pindb import PinDatabase
 
 
@@ -56,6 +57,10 @@ class SamplesExplorer(QWidget):
 		self.lst_samples.mouseReleaseEvent = self.samples_mouse_release
 		self.lst_samples.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.lst_samples.customContextMenuRequested.connect(self.slot_context_menu)
+		with SigBlock(self.chk_filter_instrument, self.chk_show_selected, self.chk_show_pinned):
+			self.chk_filter_instrument.setChecked(get_setting(KEY_FILTER_INST, True, bool))
+			self.chk_show_selected.setChecked(get_setting(KEY_SHOW_SELECTED, True, bool))
+			self.chk_show_pinned.setChecked(get_setting(KEY_SHOW_PINNED, True, bool))
 
 	def set_current_instrument(self, instrument):
 		"""
@@ -76,15 +81,18 @@ class SamplesExplorer(QWidget):
 		self.update_list()
 
 	@pyqtSlot(int)
-	def slot_show_pinned_checked(self, _):
+	def slot_filter_checked(self, state):
+		set_setting(KEY_FILTER_INST, bool(state))
 		self.update_list()
 
 	@pyqtSlot(int)
-	def slot_filter_checked(self, _):
+	def slot_show_selected_checked(self, state):
+		set_setting(KEY_SHOW_SELECTED, bool(state))
 		self.update_list()
 
 	@pyqtSlot(int)
-	def slot_show_selected_checked(self, _):
+	def slot_show_pinned_checked(self, state):
+		set_setting(KEY_SHOW_PINNED, bool(state))
 		self.update_list()
 
 	@pyqtSlot(QPoint)

@@ -49,6 +49,9 @@ KEY_FILES_ROOT		= 'FilesRoot'
 KEY_FILES_CURRENT	= 'FilesCurrent'
 KEY_MIDI_SOURCE		= 'MIDISource'
 KEY_AUDIO_SINK		= 'AudioSink'
+KEY_FILTER_INST		= 'FilterInstrumentSamples'
+KEY_SHOW_SELECTED	= 'ShowSelectedSamples'
+KEY_SHOW_PINNED		= 'ShowPinnedSamples'
 
 SampleFileInfo		= namedtuple('SampleInfo', ['path', 'pitch', 'sfz_path', 'pinned'])
 
