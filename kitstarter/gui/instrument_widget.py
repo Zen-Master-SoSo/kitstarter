@@ -40,9 +40,9 @@ from kitstarter import PACKAGE_DIR
 from kitstarter.starter_kits import Velcurve
 
 # Suggested sizes:
-TRACK_HEIGHT = 34
+TRACK_HEIGHT = 44
 TRACK_WIDTH = 224
-SCALE_HEIGHT = 25
+SCALE_HEIGHT = 26
 LABEL_WIDTH = 190
 
 # Grid column indexes
@@ -161,8 +161,6 @@ class VelocityGraph(_Track):
 
 	def __init__(self, parent, sample):
 		super().__init__(parent)
-		self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-		self.setMinimumHeight(TRACK_HEIGHT)
 		self.sample = sample
 		self.overlaps = []
 		self.setMouseTracking(True)
@@ -174,6 +172,10 @@ class VelocityGraph(_Track):
 
 	# pylint: disable-next = invalid-name
 	def sizeHint(self):
+		return QSize(TRACK_WIDTH, TRACK_HEIGHT)
+
+	# pylint: disable-next = invalid-name
+	def minimumSizeHint(self):
 		return QSize(TRACK_WIDTH, TRACK_HEIGHT)
 
 	# pylint: disable-next = invalid-name
@@ -393,6 +395,7 @@ class Scale(_Track):
 
 	def __init__(self, parent):
 		super().__init__(parent)
+		self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 		self.setFixedHeight(SCALE_HEIGHT)
 		self.indicator_points = [
 			QPointF(-4,0),
@@ -411,6 +414,10 @@ class Scale(_Track):
 		self.label_font = self.font()
 		self.label_font.setItalic(True)
 		self.label_font.setPixelSize(11)
+
+	# pylint: disable-next = invalid-name
+	def minimumSizeHint(self):
+		return QSize(TRACK_WIDTH, SCALE_HEIGHT)
 
 	# pylint: disable-next = invalid-name
 	def paintEvent(self, _):
@@ -449,9 +456,11 @@ class Pad(_Track):
 
 	def __init__(self, parent):
 		super().__init__(parent)
-		self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-		self.setMinimumHeight(TRACK_HEIGHT)
 		self.mouse_pressed = False
+
+	# pylint: disable-next = invalid-name
+	def minimumSizeHint(self):
+		return QSize(TRACK_WIDTH, TRACK_HEIGHT)
 
 	# pylint: disable-next = invalid-name
 	def mousePressEvent(self, event):
@@ -509,6 +518,7 @@ class InstrumentWidget(QWidget):
 
 		# Create main layout
 		main_layout = QVBoxLayout()
+		main_layout.setSizeConstraint(QLayout.SetMinimumSize)
 		main_layout.setContentsMargins(8,4,8,8) # left, top, right, bottom
 		main_layout.setSpacing(8)
 
@@ -595,6 +605,12 @@ class InstrumentWidget(QWidget):
 		self.sld_pan.valueChanged.connect(self.slot_pan_changed)
 		self.pad.sig_mouse_press.connect(self.slot_mouse_press)
 		self.pad.sig_mouse_release.connect(self.slot_mouse_release)
+
+	# pylint: disable-next = invalid-name
+	def minimumSizeHint(self):
+		return QSize(TRACK_WIDTH + LABEL_WIDTH + 60,
+			TRACK_HEIGHT * (self.grid.inhabited_row_count() - 2) +
+			SCALE_HEIGHT * 2)
 
 	def has_samples(self):
 		return self.grid.inhabited_row_count() > 2
