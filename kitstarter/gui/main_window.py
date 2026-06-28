@@ -122,9 +122,9 @@ class MainWindow(QMainWindow):
 		self.samples_explorer.sig_stop_playing.connect(
 			self.audio.slot_stop_playing)
 		self.cmb_midi_srcs.currentTextChanged.connect(
-			self.slot_midi_src_selected)
+			self.audio.slot_midi_src_selected)
 		self.cmb_audio_sinks.currentTextChanged.connect(
-			self.slot_audio_sink_selected)
+			self.audio.slot_audio_sink_selected)
 		self.audio.sig_jack_down.connect(
 			self.slot_jack_down)
 		self.audio.sig_jack_ready.connect(
@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
 		logging.debug('Layout complete')
 		self.slot_current_sample_widget_changed(None)
 		self.files_explorer.layout_complete()
+		self.audio.connect()
 		if self.sfz_filename:
 			self.load_sfz()
 
@@ -289,8 +290,6 @@ class MainWindow(QMainWindow):
 	@pyqtSlot(int)
 	def slot_jack_ready(self, samplerate):
 		self.lbl_jack_state.setText(f'JACK samplerate: {samplerate}')
-		self.slot_sources_changed()
-		self.slot_sinks_changed()
 
 	@pyqtSlot()
 	def slot_jack_down(self):
@@ -304,7 +303,7 @@ class MainWindow(QMainWindow):
 			for port in self.audio.conn_man.output_ports():
 				if port.is_midi:
 					self.cmb_midi_srcs.addItem(port.name)
-			if self.audio.src_connected:
+			if self.audio.synth.connected_midi_src_port:
 				self.cmb_midi_srcs.setCurrentText(self.audio.midi_src)
 
 	@pyqtSlot()
@@ -312,22 +311,13 @@ class MainWindow(QMainWindow):
 		with SigBlock(self.cmb_audio_sinks):
 			self.cmb_audio_sinks.clear()
 			self.cmb_audio_sinks.addItem('')
-			valid_clients = set(port.client_name \
-				for port in self.audio.conn_man.input_ports() if port.is_audio)
+			valid_clients = set(
+				port.client_name for port in self.audio.conn_man.input_ports()
+				if port.is_audio )
 			for client in valid_clients:
 				self.cmb_audio_sinks.addItem(client)
-			if self.audio.sink_connected:
+			if self.audio.synth.connected_audio_sink_ports:
 				self.cmb_audio_sinks.setCurrentText(self.audio.audio_sink)
-
-	@pyqtSlot(str)
-	def slot_midi_src_selected(self, value):
-		self.audio.midi_src = value
-		self.audio.connect_midi_source()
-
-	@pyqtSlot(str)
-	def slot_audio_sink_selected(self, value):
-		self.audio.audio_sink = value
-		self.audio.connect_audio_sink()
 
 
 #  end kitstarter/kitstarter/gui/main_window.py

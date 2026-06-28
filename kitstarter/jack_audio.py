@@ -50,8 +50,6 @@ class Audio(QObject):
 		self.conn_man = None
 		self.synth = None
 		self.audio_player = None
-		self.src_connected = False
-		self.sink_connected = False
 		_, self.tempfile = tempfile.mkstemp(suffix='.sfz')
 		self.sig_ports_complete.connect(self.slot_ports_complete, type = Qt.QueuedConnection)
 		self.sig_sources_changed.connect(self.slot_sources_changed, type = Qt.QueuedConnection)
@@ -61,7 +59,6 @@ class Audio(QObject):
 		self.connect_retry_timer.setInterval(CONNECT_RETRY_INTERVAL)
 		self.connect_retry_timer.setSingleShot(True)
 		self.connect_retry_timer.timeout.connect(self.connect)
-		QTimer.singleShot(0, self.connect)
 
 	def connect(self):
 		try:
@@ -92,8 +89,7 @@ class Audio(QObject):
 			self.synth.client_name = client_name
 
 	def jack_port_registration(self, port, action):
-		if action and not self.synth.ports_ready \
-			and self.synth.client_name and self.synth.client_name in port.name:
+		if action and self.synth.client_name and port.name.startswith(self.synth.client_name + ':'):
 			if port.is_input and port.is_midi:
 				self.synth.input_port = port
 			elif port.is_output and port.is_audio:
@@ -101,7 +97,7 @@ class Audio(QObject):
 			if self.synth.input_port and len(self.synth.output_ports) == 2:
 				self.synth.ports_ready = True
 				self.sig_ports_complete.emit()
-		elif port.is_input:
+		if port.is_input:
 			self.sig_sinks_changed.emit()
 		else:
 			self.sig_sources_changed.emit()
@@ -131,7 +127,23 @@ class Audio(QObject):
 		Triggered by sig_ports_complete, emitted in "jack_port_registration".
 		"""
 		self.connect_midi_source()
-		self.connect_audio_sink()
+		self.connect_audio_sinks()
+
+	@pyqtSlot(str)
+	def slot_midi_src_selected(self, value):
+		"""
+		Triggered from combo box selection
+		"""
+		self.midi_src = value
+		self.connect_midi_source()
+
+	@pyqtSlot(str)
+	def slot_audio_sink_selected(self, value):
+		"""
+		Triggered from combo box selection
+		"""
+		self.audio_sink = value
+		self.connect_audio_sinks()
 
 	@pyqtSlot()
 	def slot_sources_changed(self):
@@ -147,7 +159,7 @@ class Audio(QObject):
 		Triggered by sig_sinks_changed, emitted in "jack_port_registration".
 		"""
 		if self.synth.ports_ready:
-			self.connect_audio_sink()
+			self.connect_audio_sinks()
 
 	@property
 	def midi_src(self):
@@ -166,35 +178,46 @@ class Audio(QObject):
 		set_setting(KEY_AUDIO_SINK, value)
 
 	def connect_midi_source(self):
-		if self.conn_man and self.synth and self.synth.ports_ready:
-			midi_src = self.midi_src
-			for port_name in self.conn_man.get_port_connections_names(self.synth.input_port):
-				if port_name != midi_src:
-					self.conn_man.disconnect_by_name(port_name, self.synth.input_port.name)
-			self.src_connected = False
-			if midi_src:
-				if src_port := self.conn_man.get_port_by_name(midi_src):
-					self.conn_man.connect(src_port, self.synth.input_port)
-					self.src_connected = True
+		if self.synth and self.synth.ports_ready:
+			# Look for source port if midi_src has a str value:
+			if self.midi_src:
+				src_port = self.conn_man.get_port_by_name(self.midi_src)
+				# No need to disconnect / reconnect if they are equal:
+				if src_port == self.synth.connected_midi_src_port:
+					return
+			else:
+				src_port = None
+			# Disconnect existing:
+			if self.synth.connected_midi_src_port:
+				self.conn_man.disconnect(self.synth.connected_midi_src_port, self.synth.input_port)
+			# Connect if midi_src has a str value:
+			if src_port:
+				self.conn_man.connect(src_port, self.synth.input_port)
+			# Update connected port (may be none):
+			self.synth.connected_midi_src_port = src_port
 
-	def connect_audio_sink(self):
-		if self.conn_man and self.synth and self.synth.ports_ready:
-			audio_sink = get_setting(KEY_AUDIO_SINK)
-			for output_port in chain(self.synth.output_ports, self.audio_player.output_ports):
-				output_port = self.conn_man.get_port_by_name(output_port.name)
-				for port_name in self.conn_man.get_port_connections_names(output_port):
-					if port_name.split(':')[0] != audio_sink:
-						self.conn_man.disconnect_by_name(output_port.name, port_name)
-			self.sink_connected = False
-			if audio_sink:
-				audio_sink_ports = self.conn_man.get_ports(JACK_PORT_IS_INPUT,
-					port_name_pattern = f'{audio_sink}:*')
-				if audio_sink_ports:
-					for src_port, dest_port in zip(self.synth.output_ports, audio_sink_ports):
-						self.conn_man.connect(src_port, dest_port)
-					for src_port, dest_port in zip(self.audio_player.output_ports, audio_sink_ports):
-						self.conn_man.connect(src_port, dest_port)
-					self.sink_connected = True
+	def connect_audio_sinks(self):
+		if self.synth and self.synth.ports_ready:
+			# Look for target ports if audio_sink has a str value:
+			if self.audio_sink:
+				tgt_ports = [ port for port in self.conn_man.get_client_ports(self.audio_sink)
+					if port.is_audio and port.is_input ]
+				# No need to disconnect / reconnect if they are equal:
+				if tgt_ports == self.synth.connected_audio_sink_ports:
+					return
+			else:
+				tgt_ports = []
+			# Disconnect existing:
+			if self.synth.connected_audio_sink_ports:
+				for src, tgt in zip(
+					self.synth.output_ports, self.synth.connected_audio_sink_ports):
+					self.conn_man.disconnect(src, tgt)
+			# Connect if audio_sink has a str value:
+			if tgt_ports:
+				for src, tgt in zip(self.synth.output_ports, tgt_ports):
+					self.conn_man.connect(src, tgt)
+			# Update connected ports (may be none):
+			self.synth.connected_audio_sink_ports = tgt_ports
 
 	def load_kit(self, kit):
 		with open(self.tempfile, 'w', encoding = 'utf-8') as fob:
@@ -219,9 +242,11 @@ class JackLiquidSFZ(LiquidSFZ):
 
 	def __init__(self, filename):
 		self.client_name = None
+		self.ports_ready = False
 		self.input_port = None
 		self.output_ports = []
-		self.ports_ready = False
+		self.connected_midi_src_port = None
+		self.connected_audio_sink_ports = []
 		super().__init__(filename, defer_start = True)
 
 
