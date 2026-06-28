@@ -21,14 +21,15 @@
 Provides MainWindow of the kitstarter application.
 """
 import logging
-from os.path import join, dirname, abspath
+from os.path import join, dirname, basename, abspath
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
 from qt_extras import SigBlock, ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
 from sfzen.drumkits import iter_pitch_by_group
-from kitstarter import get_setting, set_setting, APPLICATION_NAME, KEY_RECENT_FOLDER
+from kitstarter import (
+	get_setting, set_setting, APPLICATION_NAME, KEY_RECENT_OPEN_DIR, KEY_RECENT_SAVE_DIR)
 from kitstarter.gui.instrument_widget import InstrumentWidget, init_paint_resources
 from kitstarter.gui.samples_explorer import SamplesExplorer
 from kitstarter.gui.files_explorer import FilesExplorer
@@ -184,12 +185,12 @@ class MainWindow(QMainWindow):
 	def slot_open(self):
 		filename, _ = QFileDialog.getOpenFileName(self,
 			"Open .sfz file",
-			get_setting(KEY_RECENT_FOLDER, ''),
+			get_setting(KEY_RECENT_OPEN_DIR, ''),
 			".SFZ files (*.sfz)"
 		)
 		if filename != '':
 			self.sfz_filename = abspath(filename)
-			set_setting(KEY_RECENT_FOLDER, dirname(self.sfz_filename))
+			set_setting(KEY_RECENT_OPEN_DIR, dirname(self.sfz_filename))
 			self.load_sfz()
 
 	def load_sfz(self):
@@ -214,13 +215,15 @@ class MainWindow(QMainWindow):
 		Triggered by "File -> Save bashed kit" menu
 		See also: slot_drumkit_bashed
 		"""
+		dir_ = get_setting(KEY_RECENT_SAVE_DIR)
 		filename, _ = QFileDialog.getSaveFileName(
 			self,
 			'Save as .sfz ...',
-			'' if self.sfz_filename is None else self.sfz_filename,
+			dir_ if self.sfz_filename is None else join(dir_, basename(self.sfz_filename)),
 			"SFZ (*.sfz)")
 		if filename:
 			self.sfz_filename = filename
+			set_setting(KEY_RECENT_SAVE_DIR, dirname(self.sfz_filename))
 			self.save()
 
 	def save(self):

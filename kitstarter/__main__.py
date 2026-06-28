@@ -22,6 +22,7 @@ kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
 import sys, os, argparse, logging
 from PyQt5.QtWidgets import QApplication
+from kitstarter import LOG_FORMAT
 from kitstarter.gui.main_window import MainWindow
 
 # -------------------------------------------------------------------
@@ -36,8 +37,7 @@ def main():
 	p.add_argument("--verbose", "-v", action="store_true", help="Show more detailed debug information")
 	options = p.parse_args()
 	log_level = logging.DEBUG if options.verbose else logging.ERROR
-	log_format = "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
-	logging.basicConfig(level = log_level, format = log_format)
+	logging.basicConfig(level = log_level, format = LOG_FORMAT)
 
 	#-----------------------------------------------------------------------
 	# Annoyance fix per:

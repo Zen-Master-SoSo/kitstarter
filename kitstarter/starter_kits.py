@@ -20,11 +20,12 @@
 """
 Provides Drumkit SFZ wrapper which allows import / copy operations.
 """
+from os import linesep
 from os.path import abspath, basename
 from collections import namedtuple
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_NAMES
 from sfzen import SFZ
-from sfzen.drumkits import PITCH_GROUPS, pitch_id_tuple, iter_pitch_by_group
+from sfzen.drumkits import PITCH_GROUPS, GROUP_PITCHES, pitch_id_tuple
 
 Velcurve = namedtuple('Velcurve', ['velocity', 'amplitude'])
 
@@ -86,16 +87,30 @@ class StarterKit:
 		return self.instruments[pitch]
 
 	def write(self, stream):
-		stream.write("""
+		"""
+		Write in SFZ format to given stream
+		"""
+		stream.write(f"""//
+// {self.filename}
+//
+
 <global>
 loop_mode=one_shot
 ampeg_attack=0.001
 
 """)
-		for pitch in iter_pitch_by_group():
-			instrument = self.instruments[pitch]
-			if len(instrument.samples):
-				instrument.write(stream)
+		for group_id, pitches in GROUP_PITCHES.items():
+			instruments = [ self.instruments[pitch] for pitch in pitches ]
+			if any(len(instrument.samples) for instrument in instruments):
+				group_name = group_id.replace('_', ' ').capitalize()
+				stream.write(f"""//
+// {group_name}
+//
+
+""")
+				for instrument in instruments:
+					if len(instrument.samples):
+						instrument.write(stream)
 
 
 class StarterInstrument:
@@ -146,17 +161,17 @@ class StarterInstrument:
 			sample.dirty = False
 
 	def write(self, stream):
-		stream.write(f'// "{self.name}" ({self.note_name})\n')
-		stream.write(f'<group>\nkey={self.pitch}\n')
+		stream.write(f'<group> // "{self.name}" ({self.note_name}){linesep}')
+		stream.write(f'key={self.pitch}{linesep}')
 		if PITCH_GROUPS[self.pitch] == 'high_hats':
-			stream.write('group=88\n')
-			stream.write('off_by=88\n')
+			stream.write('group=88{linesep}')
+			stream.write('off_by=88{linesep}')
 		if self._pan != 0:
-			stream.write(f'pan={self._pan}\n')
-		stream.write("\n")
+			stream.write(f'pan={self._pan}{linesep}')
+		stream.write(linesep)
 		for sample in self.samples.values():
 			sample.write(stream)
-		stream.write("\n")
+		stream.write(linesep)
 
 
 class StarterSample:
@@ -224,21 +239,20 @@ class StarterSample:
 		self.dirty = True
 
 	def write(self, stream):
-		stream.write('<region>\n')
-		stream.write(f'sample={self.path}\n')
+		stream.write(f'<region>{linesep}sample={self.path}{linesep}')
 		if self._volume != 0.0:
-			stream.write(f'volume={self._volume:.2f}\n')
+			stream.write(f'volume={self._volume:.2f}{linesep}')
 		if self._lovel > 0:
-			stream.write(f'lovel={self._lovel}\n')
+			stream.write(f'lovel={self._lovel}{linesep}')
 		if self._hivel < 127:
-			stream.write(f'hivel={self._hivel}\n')
+			stream.write(f'hivel={self._hivel}{linesep}')
 		for point in self.velcurves:
-			stream.write(f'amp_velcurve_{point.velocity}={point.amplitude:.1f}\n')
+			stream.write(f'amp_velcurve_{point.velocity}={point.amplitude:.1f}{linesep}')
 		if self._transpose != 0:
-			stream.write(f'transpose={self._transpose}\n')
+			stream.write(f'transpose={self._transpose}{linesep}')
 		if self._tune != 0:
-			stream.write(f'tune={self._tune}\n')
-		stream.write("\n")
+			stream.write(f'tune={self._tune}{linesep}')
+		stream.write(linesep)
 
 
 #  end kitstarter/kitstarter/starter_kits.py

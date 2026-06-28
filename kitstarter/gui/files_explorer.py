@@ -27,7 +27,7 @@ from qt_extras import ShutUpQT
 from sfzen.drumkits import Drumkit
 from kitstarter import (
 	get_setting, set_setting, xdg_open, SampleFileInfo,
-	FILE_FILTERS, SAMPLE_EXTENSIONS, KEY_FILES_ROOT, KEY_FILES_CURRENT)
+	FILE_FILTERS, SAMPLE_EXTENSIONS, KEY_SFZS_ROOT, KEY_SFZS_CURRENT)
 
 
 class FilesExplorer(QWidget):
@@ -40,8 +40,8 @@ class FilesExplorer(QWidget):
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'files_explorer.ui'), self)
 		self.current_instrument = None
-		root_path = get_setting(KEY_FILES_ROOT, QDir.homePath())
-		current_path = get_setting(KEY_FILES_CURRENT, QDir.homePath())
+		root_path = get_setting(KEY_SFZS_ROOT, QDir.homePath())
+		current_path = get_setting(KEY_SFZS_CURRENT, QDir.homePath())
 		self.files_model = QFileSystemModel()
 		self.files_model.setRootPath(root_path)
 		self.files_model.setNameFilters(FILE_FILTERS)
@@ -96,7 +96,7 @@ class FilesExplorer(QWidget):
 	@pyqtSlot(QItemSelection, QItemSelection)
 	def slot_files_selection_changed(self, *_):
 		path = self.files_model.filePath(self.tree_files.currentIndex())
-		set_setting(KEY_FILES_CURRENT, path)
+		set_setting(KEY_SFZS_CURRENT, path)
 		sample_infos = []
 		for index in self.tree_files.selectedIndexes():
 			if self.files_model.isDir(index):
