@@ -17,6 +17,8 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
+import logging
+from os import linesep
 from os.path import join, dirname, splitext
 from functools import lru_cache
 from PyQt5 import uic
@@ -34,6 +36,7 @@ class FilesExplorer(QWidget):
 
 	sig_selection_changed = pyqtSignal(list)
 	sig_use_samples = pyqtSignal(list)
+	sig_open_sfz = pyqtSignal(str)
 
 	def __init__(self, parent):
 		super().__init__(parent)
@@ -65,27 +68,66 @@ class FilesExplorer(QWidget):
 		"""
 		Display context menu for self.tree_files
 		"""
-		indexes = self.tree_files.selectedIndexes()
-		if len(indexes):
-			menu = QMenu(self)
-			paths = [ self.files_model.filePath(index) for index in indexes ]
-			def copy_paths():
-				QApplication.instance().clipboard().setText("\n".join(paths))
-			action = QAction('Copy path' if len(indexes) == 1 else 'Copy paths', self)
-			action.triggered.connect(copy_paths)
-			menu.addAction(action)
-			if all(splitext(path)[-1] in SAMPLE_EXTENSIONS for path in paths):
-				def use_samples():
-					self.sig_use_samples.emit(paths)
-				action = QAction(f'Use for "{self.current_instrument.name}"', self)
-				action.triggered.connect(use_samples)
-				menu.addAction(action)
-			def open_file():
-				xdg_open(paths[0])
-			if len(indexes) == 1:
-				action = QAction('Open in external program ...')
-				action.triggered.connect(open_file)
-				menu.addAction(action)
+		root_parent = dirname(self.files_model.rootPath())
+		mouse_index = self.tree_files.indexAt(position)
+		menu = QMenu(self)
+		if root_parent or mouse_index.isValid():
+
+			def up_to_parent():
+				self.files_model.setRootPath(root_parent)
+				self.tree_files.setRootIndex(self.files_model.index(root_parent))
+				self.tree_files.expandToDepth(0)
+				set_setting(KEY_SFZS_ROOT, root_parent)
+			if root_parent:
+				act_up = QAction('Up to parent')
+				act_up.triggered.connect(up_to_parent)
+				menu.addAction(act_up)
+
+			if mouse_index.isValid():
+
+				path = self.files_model.filePath(mouse_index)
+
+				def set_root():
+					self.files_model.setRootPath(path)
+					self.tree_files.setRootIndex(mouse_index)
+					self.tree_files.expandToDepth(0)
+					set_setting(KEY_SFZS_ROOT, path)
+
+				if self.files_model.isDir(mouse_index):
+					act_set_root = QAction('Set this directory as root')
+					act_set_root.triggered.connect(set_root)
+					menu.addAction(act_set_root)
+
+				else:
+					ext = splitext(path)[-1].lower()
+					if ext == '.sfz':
+
+						def open_sfz():
+							self.sig_open_sfz.emit(path)
+						act_open = QAction('Load this SFZ', self)
+						act_open.triggered.connect(open_sfz)
+						menu.addAction(act_open)
+
+					elif ext in SAMPLE_EXTENSIONS:
+
+						def use_sample():
+							self.sig_use_sample.emit([path])
+						act_use_sample = QAction(f'Use for "{self.current_instrument.name}"', self)
+						act_use_sample.triggered.connect(use_sample)
+						menu.addAction(act_use_sample)
+
+				def copy_path():
+					QApplication.instance().clipboard().setText(path)
+				act_copy_path = QAction('Copy path', self)
+				act_copy_path.triggered.connect(copy_path)
+				menu.addAction(act_copy_path)
+
+				def open_file():
+					xdg_open(path)
+				act_open_ext = QAction('Open in external program ...')
+				act_open_ext.triggered.connect(open_file)
+				menu.addAction(act_open_ext)
+
 			menu.exec(self.tree_files.mapToGlobal(position))
 
 	def layout_complete(self):

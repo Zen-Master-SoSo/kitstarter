@@ -164,8 +164,8 @@ class StarterInstrument:
 		stream.write(f'<group> // "{self.name}" ({self.note_name}){linesep}')
 		stream.write(f'key={self.pitch}{linesep}')
 		if PITCH_GROUPS[self.pitch] == 'high_hats':
-			stream.write('group=88{linesep}')
-			stream.write('off_by=88{linesep}')
+			stream.write(f'group=88{linesep}')
+			stream.write(f'off_by=88{linesep}')
 		if self._pan != 0:
 			stream.write(f'pan={self._pan}{linesep}')
 		stream.write(linesep)
