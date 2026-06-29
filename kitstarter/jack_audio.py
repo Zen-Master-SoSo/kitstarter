@@ -229,7 +229,6 @@ class Audio(QObject):
 	def load_kit(self, kit):
 		with open(self.tempfile, 'w', encoding = 'utf-8') as fob:
 			kit.write(fob)
-		logging.debug('loading %s', self.tempfile)
 		self.synth.load(self.tempfile)	# pylint: disable = no-member
 
 	@pyqtSlot(SoundFile)
