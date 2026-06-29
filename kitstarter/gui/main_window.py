@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
 			self.stk_instrument_widget.setCurrentIndex)
 		self.files_explorer.sig_selection_changed.connect(
 			self.samples_explorer.slot_files_selection_changed)
+		self.files_explorer.sig_open_sfz.connect(
+			self.slot_open_selected)
 		self.files_explorer.sig_use_samples.connect(
 			self.slot_use_samples)
 		self.samples_explorer.sig_use_samples.connect(
@@ -136,6 +138,8 @@ class MainWindow(QMainWindow):
 			self.slot_sources_changed)
 		self.audio.sig_sinks_changed.connect(
 			self.slot_sinks_changed)
+		self.audio.sig_midi_connected.connect(
+			self.slot_midi_connected)
 
 		# Connect menu actions
 		self.action_new.triggered.connect(self.slot_new)
@@ -150,7 +154,6 @@ class MainWindow(QMainWindow):
 		QTimer.singleShot(0, self.layout_complete)
 
 	def layout_complete(self):
-		logging.debug('Layout complete')
 		self.slot_current_sample_widget_changed(None)
 		self.files_explorer.layout_complete()
 		self.audio.connect()
@@ -192,6 +195,12 @@ class MainWindow(QMainWindow):
 			self.sfz_filename = abspath(filename)
 			set_setting(KEY_RECENT_OPEN_DIR, dirname(self.sfz_filename))
 			self.load_sfz()
+
+	@pyqtSlot(str)
+	def slot_open_selected(self, filename):
+		self.sfz_filename = abspath(filename)
+		set_setting(KEY_RECENT_OPEN_DIR, dirname(self.sfz_filename))
+		self.load_sfz()
 
 	def load_sfz(self):
 		self.kit = StarterKit(self.sfz_filename)
@@ -321,6 +330,10 @@ class MainWindow(QMainWindow):
 				self.cmb_audio_sinks.addItem(client)
 			if self.audio.synth.connected_audio_sink_ports:
 				self.cmb_audio_sinks.setCurrentText(self.audio.audio_sink)
+
+	@pyqtSlot(str)
+	def slot_midi_connected(self, port_name):
+		self.statusbar.showMessage(f'Connected to "{port_name}"', MESSAGE_TIMEOUT)
 
 
 #  end kitstarter/kitstarter/gui/main_window.py

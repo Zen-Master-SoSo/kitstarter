@@ -24,12 +24,13 @@ import os, logging, tempfile
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QTimer
 from soundfile import SoundFile
 from liquiphy import LiquidSFZ
-from conn_jack import JackConnectionManager, JackConnectError
+from conn_jack import JackConnectionManager, JackPort, JackConnectError
 from jack_audio_player import JackAudioPlayer
 from kitstarter import get_setting, set_setting, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 
 
 SYNTH_NAME = 'liquidsfz'
+AUDIO_PLAYER_CLIENT = 'kitstarter_jack_player'
 CONNECT_RETRY_INTERVAL = 1776
 
 
@@ -43,6 +44,7 @@ class Audio(QObject):
 	sig_sinks_changed = pyqtSignal()	# /
 	sig_jack_down = pyqtSignal()		#
 	sig_jack_ready = pyqtSignal(int)
+	sig_midi_connected = pyqtSignal(str)
 
 	def __init__(self):
 		super().__init__()
@@ -70,7 +72,7 @@ class Audio(QObject):
 			self.conn_man.on_client_registration(self.jack_client_registration)
 			self.conn_man.on_port_registration(self.jack_port_registration)
 			self.synth = JackLiquidSFZ(self.tempfile)
-			self.audio_player = JackAudioPlayer()
+			self.audio_player = JackAudioPlayer(AUDIO_PLAYER_CLIENT)
 			self.sig_jack_ready.emit(self.conn_man.samplerate)
 			self.synth.start()
 
@@ -192,6 +194,7 @@ class Audio(QObject):
 			# Connect if midi_src has a str value:
 			if src_port:
 				self.conn_man.connect(src_port, self.synth.input_port)
+				self.sig_midi_connected.emit(src_port.name)
 			# Update connected port (may be none):
 			self.synth.connected_midi_src_port = src_port
 
@@ -211,9 +214,14 @@ class Audio(QObject):
 				for src, tgt in zip(
 					self.synth.output_ports, self.synth.connected_audio_sink_ports):
 					self.conn_man.disconnect(src, tgt)
+				for src, tgt in zip(
+					self.audio_player.output_ports, self.synth.connected_audio_sink_ports):
+					self.conn_man.disconnect(src, tgt)
 			# Connect if audio_sink has a str value:
 			if tgt_ports:
 				for src, tgt in zip(self.synth.output_ports, tgt_ports):
+					self.conn_man.connect(src, tgt)
+				for src, tgt in zip(self.audio_player.output_ports, tgt_ports):
 					self.conn_man.connect(src, tgt)
 			# Update connected ports (may be none):
 			self.synth.connected_audio_sink_ports = tgt_ports

@@ -24,7 +24,7 @@ from soundfile import SoundFile, LibsndfileError
 from PyQt5 import uic
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint
-from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidgetItem
+from PyQt5.QtWidgets import QApplication, QWidget, QMenu, QAction, QListWidget, QListWidgetItem
 from qt_extras import SigBlock, ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
 from kitstarter import (
@@ -157,7 +157,7 @@ class SamplesExplorer(QWidget):
 
 	def samples_mouse_release(self, event):
 		self.sig_stop_playing.emit()
-		super().mouseReleaseEvent(event)
+		QListWidget.mouseReleaseEvent(self.lst_samples, event)
 
 	def update_list(self):
 		QApplication.setOverrideCursor(Qt.WaitCursor)
