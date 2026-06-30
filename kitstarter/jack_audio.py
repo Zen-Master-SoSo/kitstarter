@@ -20,11 +20,12 @@
 """
 Provides MainWindow of the kitstarter application.
 """
-import os, logging, tempfile
+import logging, tempfile
+from os import unlink
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QTimer
 from soundfile import SoundFile
 from liquiphy import LiquidSFZ
-from conn_jack import JackConnectionManager, JackPort, JackConnectError
+from conn_jack import JackConnectionManager, JackConnectError
 from jack_audio_player import JackAudioPlayer
 from kitstarter import get_setting, set_setting, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 
@@ -80,7 +81,7 @@ class Audio(QObject):
 		if self.synth and hasattr(self.synth, 'quit'):
 			self.synth.ports_ready = False
 			self.synth.quit()	# pylint: disable = no-member
-		os.unlink(self.tempfile)
+		unlink(self.tempfile)
 
 	# -----------------------------------------------------------------
 	# JACK callbacks

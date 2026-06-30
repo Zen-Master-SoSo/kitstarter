@@ -30,11 +30,11 @@ from kitstarter.gui.main_window import MainWindow
 
 def main():
 	p = argparse.ArgumentParser()
-	p.epilog = """
-	Write your help text!
-	"""
-	p.add_argument('Filename', type=str, nargs='?', help='.SFZ file to import')
-	p.add_argument("--verbose", "-v", action="store_true", help="Show more detailed debug information")
+	p.epilog = __doc__
+	p.add_argument('Filename', type=str, nargs='?',
+		help='.SFZ file to import')
+	p.add_argument("--verbose", "-v", action="store_true",
+		help="Show more detailed debug information")
 	options = p.parse_args()
 	log_level = logging.DEBUG if options.verbose else logging.ERROR
 	logging.basicConfig(level = log_level, format = LOG_FORMAT)

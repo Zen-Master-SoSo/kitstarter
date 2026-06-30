@@ -18,7 +18,6 @@
 #  MA 02110-1301, USA.
 #
 import logging
-from os import linesep
 from os.path import join, dirname, splitext
 from functools import lru_cache
 from PyQt5 import uic

@@ -46,7 +46,7 @@ class StarterKit:
 		if self.filename:
 			sfz = SFZ(self.filename)
 			for pitch, instrument in self.instruments.items():
-				for region in sfz.regions_for(key = pitch, lokey = pitch, hikey = pitch):
+				for region in sfz.regions_for(key = pitch):
 					instrument.pan = region.pan or 0
 					if region_sample := region.sample:
 						starter_sample = StarterSample(region_sample.abspath, pitch)

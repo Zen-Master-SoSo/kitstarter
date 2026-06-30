@@ -20,7 +20,8 @@
 """
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
-import sys, os, argparse, logging, json, glob
+import sys, argparse, logging, json, glob
+from os.path import dirname
 from platform import system
 from subprocess import Popen, run
 from collections import namedtuple
@@ -41,7 +42,7 @@ __version__ = "0.4.0"
 
 
 APPLICATION_NAME	= 'KitStarter'
-PACKAGE_DIR			= os.path.dirname(__file__)
+PACKAGE_DIR			= dirname(__file__)
 FILE_FILTERS		= ['*.ogg', '*.wav', '*.flac', '*.sfz']
 SAMPLE_EXTENSIONS	= ['.ogg', '.wav', '.flac']
 LOG_FORMAT			= "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
