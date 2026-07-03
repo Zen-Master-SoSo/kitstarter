@@ -175,14 +175,21 @@ class MainWindow(QMainWindow):
 	# -----------------------------------------------------------------
 	# Load / save
 
+	def set_kit(self, kit):
+		self.kit = kit
+		for index, widget in enumerate(self.iterate_sample_widgets()):
+			widget.load_instrument(self.kit.instrument(widget.instrument.pitch))
+			self.instrument_list.update_instrument(index, widget.has_samples())
+		self.audio.load_kit(self.kit)
+		self.update_window_title()
+
 	def iterate_sample_widgets(self):
 		for index in range(self.stk_instrument_widget.count()):
 			yield self.stk_instrument_widget.widget(index)
 
 	@pyqtSlot()
 	def slot_new(self):
-		for widget in self.iterate_sample_widgets():
-			widget.clear()
+		self.set_kit(StarterKit())
 
 	@pyqtSlot()
 	def slot_open(self):
@@ -192,9 +199,7 @@ class MainWindow(QMainWindow):
 			".SFZ files (*.sfz)"
 		)
 		if filename != '':
-			self.sfz_filename = abspath(filename)
-			set_setting(KEY_RECENT_OPEN_DIR, dirname(self.sfz_filename))
-			self.load_sfz()
+			self.slot_open_selected(filename)
 
 	@pyqtSlot(str)
 	def slot_open_selected(self, filename):
@@ -203,13 +208,8 @@ class MainWindow(QMainWindow):
 		self.load_sfz()
 
 	def load_sfz(self):
-		self.kit = StarterKit(self.sfz_filename)
-		for index, widget in enumerate(self.iterate_sample_widgets()):
-			widget.load_instrument(self.kit.instrument(widget.instrument.pitch))
-			self.instrument_list.update_instrument(index, widget.has_samples())
-		self.audio.load_kit(self.kit)
+		self.set_kit(StarterKit(self.sfz_filename))
 		self.statusbar.showMessage(f'Opened {self.sfz_filename}', MESSAGE_TIMEOUT)
-		self.update_window_title()
 
 	@pyqtSlot()
 	def slot_save(self):

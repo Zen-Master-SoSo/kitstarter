@@ -48,7 +48,7 @@ class StarterKit:
 			for pitch, instrument in self.instruments.items():
 				for region in sfz.regions_for(key = pitch):
 					instrument.pan = region.pan or 0
-					if region_sample := region.sample:
+					if region_sample := region.opcode('sample'):
 						starter_sample = StarterSample(region_sample.abspath, pitch)
 						opcodes = region.inherited_opcodes()
 						if 'lovel' in opcodes:
