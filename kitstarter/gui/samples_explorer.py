@@ -49,6 +49,9 @@ class SamplesExplorer(QWidget):
 		self.icon_sample_okay = QIcon(join(PACKAGE_DIR, 'res', 'sample-okay.svg'))
 		self.icon_sample_mismatch = QIcon(join(PACKAGE_DIR, 'res', 'sample-mismatch.svg'))
 		self.icon_sample_pinned = QIcon(join(PACKAGE_DIR, 'res', 'pin.svg'))
+		self.icon_sample_unpinned = QIcon(join(PACKAGE_DIR, 'res', 'unpinned.svg'))
+		self.icon_use_sample = QIcon.fromTheme("list-add")
+		self.icon_copy = QIcon.fromTheme("edit-copy")
 		self.icon_sample_err = QIcon.fromTheme('dialog-warning')
 		self.chk_filter_instrument.stateChanged.connect(self.slot_filter_checked)
 		self.chk_show_pinned.stateChanged.connect(self.slot_show_pinned_checked)
@@ -113,6 +116,7 @@ class SamplesExplorer(QWidget):
 					self.existing_item_from_path(info.path).setIcon(self.icon_sample_pinned)
 			if not all(pinned):
 				action = QAction('Pin', self)
+				action.setIcon(self.icon_sample_unpinned)
 				action.triggered.connect(pin)
 				menu.addAction(action)
 
@@ -122,6 +126,7 @@ class SamplesExplorer(QWidget):
 					self.set_unpinned_icon(self.existing_item_from_path(info.path))
 			if any(pinned):
 				action = QAction('Unpin', self)
+				action.setIcon(self.icon_sample_pinned)
 				action.triggered.connect(unpin)
 				menu.addAction(action)
 
@@ -129,6 +134,7 @@ class SamplesExplorer(QWidget):
 				self.sig_use_samples.emit([info.path for info in sample_infos])
 			title = 'these samples' if len(sample_infos) > 1 else f'"{basename(sample_infos[0].path)}"'
 			action = QAction(f'Use {title} for "{MIDI_DRUM_NAMES[pitch]}"', self)
+			action.setIcon(self.icon_use_sample)
 			action.triggered.connect(use_samples)
 			menu.addAction(action)
 
@@ -136,6 +142,7 @@ class SamplesExplorer(QWidget):
 				QApplication.instance().clipboard().setText(
 					"\n".join(info.path for info in sample_infos))
 			action = QAction('Copy path(s) to clipboard', self)
+			action.setIcon(self.icon_copy)
 			action.triggered.connect(copy_paths)
 			menu.addAction(action)
 

@@ -22,6 +22,7 @@ from os.path import join, dirname, splitext
 from functools import lru_cache
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QPoint, QDir, QItemSelection
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
 	QApplication, QWidget, QFileSystemModel, QAbstractItemView, QMenu, QAction)
 from qt_extras import ShutUpQT
@@ -58,6 +59,10 @@ class FilesExplorer(QWidget):
 		self.tree_files.selectionModel().selectionChanged.connect(self.slot_files_selection_changed)
 		self.tree_files.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.tree_files.customContextMenuRequested.connect(self.slot_files_context_menu)
+		self.icon_load_sfz = QIcon.fromTheme("document-open")
+		self.icon_use_sample = QIcon.fromTheme("list-add")
+		self.icon_copy = QIcon.fromTheme("edit-copy")
+		self.icon_up = QIcon.fromTheme("go-up")
 
 	def set_current_instrument(self, instrument):
 		self.current_instrument = instrument
@@ -79,6 +84,7 @@ class FilesExplorer(QWidget):
 				set_setting(KEY_SFZS_ROOT, root_parent)
 			if root_parent:
 				act_up = QAction('Up to parent')
+				act_up.setIcon(self.icon_up)
 				act_up.triggered.connect(up_to_parent)
 				menu.addAction(act_up)
 
@@ -104,6 +110,7 @@ class FilesExplorer(QWidget):
 						def open_sfz():
 							self.sig_open_sfz.emit(path)
 						act_open = QAction('Load this SFZ', self)
+						act_open.setIcon(self.icon_load_sfz)
 						act_open.triggered.connect(open_sfz)
 						menu.addAction(act_open)
 
@@ -112,12 +119,14 @@ class FilesExplorer(QWidget):
 						def use_sample():
 							self.sig_use_sample.emit([path])
 						act_use_sample = QAction(f'Use for "{self.current_instrument.name}"', self)
+						act_use_sample.setIcon(self.icon_use_sample)
 						act_use_sample.triggered.connect(use_sample)
 						menu.addAction(act_use_sample)
 
 				def copy_path():
 					QApplication.instance().clipboard().setText(path)
 				act_copy_path = QAction('Copy path', self)
+				act_copy_path.setIcon(self.icon_copy)
 				act_copy_path.triggered.connect(copy_path)
 				menu.addAction(act_copy_path)
 
