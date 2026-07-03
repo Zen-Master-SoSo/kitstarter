@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
 from conn_jack import JackConnectError
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 
 APPLICATION_NAME	= 'KitStarter'
