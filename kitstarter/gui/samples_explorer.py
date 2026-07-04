@@ -214,10 +214,11 @@ class SamplesExplorer(QWidget):
 				return item
 		return None
 
-	@pyqtSlot(int)
-	def slot_jack_ready(self, samplerate):
-		self.jack_sample_rate = samplerate
-		self.update_list()
+	@pyqtSlot(bool, int)
+	def slot_jack_ready(self, state, samplerate):
+		if state:
+			self.jack_sample_rate = samplerate
+			self.update_list()
 
 	@lru_cache(maxsize = 200)
 	def soundfile(self, path):

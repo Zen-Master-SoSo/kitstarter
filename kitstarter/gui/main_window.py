@@ -20,7 +20,7 @@
 """
 Provides MainWindow of the kitstarter application.
 """
-import logging
+import logging	# pylint: disable = unused-import
 from os.path import join, dirname, basename, abspath
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QTimer
@@ -96,15 +96,16 @@ class MainWindow(QMainWindow):
 		del self.frm_samp_expl_placeholder
 
 		# Setup statusbar
+		self.statusbar.layout().setSpacing(12)
 		self.lbl_jack_state = QLabel('[not connected]', self)
 		self.statusbar.addPermanentWidget(self.lbl_jack_state)
-		self.cmb_midi_srcs = QComboBox(self.statusbar)
+		self.cmb_midi_srcs = self.audio.midi_in_combo_box(self)
 		self.cmb_midi_srcs.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-		self.statusbar.addPermanentWidget(QLabel('Src:', self.statusbar))
+		self.statusbar.addPermanentWidget(QLabel(' Src:', self.statusbar))
 		self.statusbar.addPermanentWidget(self.cmb_midi_srcs)
-		self.cmb_audio_sinks = QComboBox(self.statusbar)
+		self.cmb_audio_sinks = self.audio.audio_out_combo_box(self)
 		self.cmb_audio_sinks.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-		self.statusbar.addPermanentWidget(QLabel('Sink:', self.statusbar))
+		self.statusbar.addPermanentWidget(QLabel(' Sink:', self.statusbar))
 		self.statusbar.addPermanentWidget(self.cmb_audio_sinks)
 
 		# Connect signals
@@ -124,22 +125,10 @@ class MainWindow(QMainWindow):
 			self.audio.slot_play_soundfile)
 		self.samples_explorer.sig_stop_playing.connect(
 			self.audio.slot_stop_playing)
-		self.cmb_midi_srcs.currentTextChanged.connect(
-			self.audio.slot_midi_src_selected)
-		self.cmb_audio_sinks.currentTextChanged.connect(
-			self.audio.slot_audio_sink_selected)
-		self.audio.sig_jack_down.connect(
-			self.slot_jack_down)
 		self.audio.sig_jack_ready.connect(
 			self.slot_jack_ready)
 		self.audio.sig_jack_ready.connect(
 			self.samples_explorer.slot_jack_ready)
-		self.audio.sig_sources_changed.connect(
-			self.slot_sources_changed)
-		self.audio.sig_sinks_changed.connect(
-			self.slot_sinks_changed)
-		self.audio.sig_midi_connected.connect(
-			self.slot_midi_connected)
 
 		# Connect menu actions
 		self.action_new.triggered.connect(self.slot_new)
@@ -299,13 +288,12 @@ class MainWindow(QMainWindow):
 	# -----------------------------------------------------------------
 	# JACK audio / source / sink management
 
-	@pyqtSlot(int)
-	def slot_jack_ready(self, samplerate):
-		self.lbl_jack_state.setText(f'JACK samplerate: {samplerate}')
-
-	@pyqtSlot()
-	def slot_jack_down(self):
-		self.lbl_jack_state.setText('JACK is down')
+	@pyqtSlot(bool, int)
+	def slot_jack_ready(self, state, samplerate):
+		if state:
+			self.lbl_jack_state.setText(f'JACK samplerate: {samplerate}')
+		else:
+			self.lbl_jack_state.setText('JACK is down')
 
 	@pyqtSlot()
 	def slot_sources_changed(self):
@@ -330,10 +318,6 @@ class MainWindow(QMainWindow):
 				self.cmb_audio_sinks.addItem(client)
 			if self.audio.synth.connected_audio_sink_ports:
 				self.cmb_audio_sinks.setCurrentText(self.audio.audio_sink)
-
-	@pyqtSlot(str)
-	def slot_midi_connected(self, port_name):
-		self.statusbar.showMessage(f'Connected to "{port_name}"', MESSAGE_TIMEOUT)
 
 
 #  end kitstarter/kitstarter/gui/main_window.py

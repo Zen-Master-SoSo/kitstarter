@@ -17,7 +17,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
-import logging
+import logging	# pylint: disable = unused-import
 from os.path import join, dirname, splitext
 from functools import lru_cache
 from PyQt5 import uic

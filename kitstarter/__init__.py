@@ -22,13 +22,13 @@ kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
 import sys, argparse, logging, json, glob
 from os.path import dirname
-from platform import system
-from subprocess import Popen, run
-from collections import namedtuple
 try:
 	from os import startfile
 except ImportError:
 	pass
+from platform import system
+from subprocess import Popen, run
+from collections import namedtuple
 try:
 	from functools import cache
 except ImportError:
@@ -36,7 +36,6 @@ except ImportError:
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
-from conn_jack import JackConnectError
 
 __version__ = "0.6.0"
 
