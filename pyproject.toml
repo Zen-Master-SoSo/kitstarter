@@ -8,7 +8,7 @@ dynamic = ["version", "description"]
 dependencies = [
 	"PyQt5",
 	"soso_qt_extras >= 1.6.0",
-	"qt_liquid_pool",
+	"qt_liquid_pool >= 1.1.0",
 	"midi_notes",
 	"sfzen >= 2.2.0",
 	"liquiphy",
