@@ -25,7 +25,7 @@ from os.path import join, dirname, basename, abspath
 from PyQt5 import uic
 from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
-from qt_extras import SigBlock, ShutUpQT
+from qt_extras import ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
 from sfzen.drumkits import iter_pitch_by_group
 from kitstarter import (
@@ -37,7 +37,6 @@ from kitstarter.gui.instrument_list import InstrumentList
 from kitstarter.starter_kits import StarterKit
 from kitstarter.jack_audio import Audio
 
-SYNTH_NAME = 'liquidsfz'
 MESSAGE_TIMEOUT = 3000
 
 
@@ -294,30 +293,6 @@ class MainWindow(QMainWindow):
 			self.lbl_jack_state.setText(f'JACK samplerate: {samplerate}')
 		else:
 			self.lbl_jack_state.setText('JACK is down')
-
-	@pyqtSlot()
-	def slot_sources_changed(self):
-		with SigBlock(self.cmb_midi_srcs):
-			self.cmb_midi_srcs.clear()
-			self.cmb_midi_srcs.addItem('')
-			for port in self.audio.conn_man.output_ports():
-				if port.is_midi:
-					self.cmb_midi_srcs.addItem(port.name)
-			if self.audio.synth.connected_midi_src_port:
-				self.cmb_midi_srcs.setCurrentText(self.audio.midi_src)
-
-	@pyqtSlot()
-	def slot_sinks_changed(self):
-		with SigBlock(self.cmb_audio_sinks):
-			self.cmb_audio_sinks.clear()
-			self.cmb_audio_sinks.addItem('')
-			valid_clients = set(
-				port.client_name for port in self.audio.conn_man.input_ports()
-				if port.is_audio )
-			for client in valid_clients:
-				self.cmb_audio_sinks.addItem(client)
-			if self.audio.synth.connected_audio_sink_ports:
-				self.cmb_audio_sinks.setCurrentText(self.audio.audio_sink)
 
 
 #  end kitstarter/kitstarter/gui/main_window.py

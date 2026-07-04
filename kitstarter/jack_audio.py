@@ -30,7 +30,6 @@ from jack_audio_player import JackAudioPlayer
 from kitstarter import get_setting, set_setting, KEY_MIDI_SOURCE, KEY_AUDIO_SINK
 
 
-SYNTH_NAME = 'liquidsfz'
 AUDIO_PLAYER_CLIENT = 'kitstarter_jack_player'
 CONNECT_RETRY_INTERVAL = 1776
 
