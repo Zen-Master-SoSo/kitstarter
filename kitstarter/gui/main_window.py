@@ -23,19 +23,21 @@ Provides MainWindow of the kitstarter application.
 import logging	# pylint: disable = unused-import
 from os.path import join, dirname, basename, abspath
 from PyQt5 import uic
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
 from qt_extras import ShutUpQT
 from midi_notes import MIDI_DRUM_NAMES
 from sfzen.drumkits import iter_pitch_by_group
-from kitstarter import (
-	get_setting, set_setting, APPLICATION_NAME, KEY_RECENT_OPEN_DIR, KEY_RECENT_SAVE_DIR)
+from kitstarter import (get_setting, set_setting,
+	PACKAGE_DIR, APPLICATION_NAME, KEY_RECENT_OPEN_DIR, KEY_RECENT_SAVE_DIR)
 from kitstarter.gui.instrument_widget import InstrumentWidget, init_paint_resources
 from kitstarter.gui.samples_explorer import SamplesExplorer
 from kitstarter.gui.files_explorer import FilesExplorer
 from kitstarter.gui.instrument_list import InstrumentList
 from kitstarter.starter_kits import StarterKit
 from kitstarter.jack_audio import Audio
+from kitstarter.install import install
 
 MESSAGE_TIMEOUT = 3000
 
@@ -50,6 +52,7 @@ class MainWindow(QMainWindow):
 		# Setup GUI
 		with ShutUpQT():
 			uic.loadUi(join(dirname(__file__), 'main_window.ui'), self)
+		self.setWindowIcon(QIcon(join(PACKAGE_DIR, 'res', 'kitstarter-icon.png')))
 		self.sfz_filename = filename
 		self.kit = StarterKit()
 		self.audio = Audio()
@@ -145,6 +148,7 @@ class MainWindow(QMainWindow):
 		self.slot_current_sample_widget_changed(None)
 		self.files_explorer.layout_complete()
 		self.audio.connect()
+		install()
 		if self.sfz_filename:
 			self.load_sfz()
 
