@@ -20,30 +20,43 @@
 """
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
-import sys, os, argparse, logging
+import sys, logging
+from os import environ, getlogin
+from argparse import ArgumentParser
 from PyQt5.QtWidgets import QApplication
 from kitstarter import LOG_FORMAT
 from kitstarter.gui.main_window import MainWindow
+from kitstarter.install import main as install
+
 
 # -------------------------------------------------------------------
 # Main
 
 def main():
-	p = argparse.ArgumentParser()
-	p.epilog = __doc__
-	p.add_argument('Filename', type=str, nargs='?',
+	parser = ArgumentParser()
+	parser.epilog = __doc__
+	parser.add_argument('Filename', type=str, nargs='?',
 		help='.SFZ file to import')
-	p.add_argument("--verbose", "-v", action="store_true",
+	parser.add_argument('--install', '-i', action = 'store_true',
+		help = """Install this application into your desktop
+environment. This will create a desktop launcher so you can start KitStarter from
+your menu or Dash, and associate KitStarter with SFZ files.""")
+	parser.add_argument("--verbose", "-v", action="store_true",
 		help="Show more detailed debug information")
-	options = p.parse_args()
+	options = parser.parse_args()
 	log_level = logging.DEBUG if options.verbose else logging.ERROR
 	logging.basicConfig(level = log_level, format = LOG_FORMAT)
+
+	if options.install:
+		install()
+		print(f'Successfully installed KitStarter for {getlogin()} on this machine.')
+		return 0
 
 	#-----------------------------------------------------------------------
 	# Annoyance fix per:
 	# https://stackoverflow.com/questions/986964/qt-session-management-error
 	try:
-		del os.environ['SESSION_MANAGER']
+		del environ['SESSION_MANAGER']
 	except KeyError:
 		pass
 	#-----------------------------------------------------------------------

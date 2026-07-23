@@ -37,7 +37,7 @@ from kitstarter.gui.files_explorer import FilesExplorer
 from kitstarter.gui.instrument_list import InstrumentList
 from kitstarter.starter_kits import StarterKit
 from kitstarter.jack_audio import Audio
-from kitstarter.install import install
+
 
 MESSAGE_TIMEOUT = 3000
 
@@ -148,7 +148,6 @@ class MainWindow(QMainWindow):
 		self.slot_current_sample_widget_changed(None)
 		self.files_explorer.layout_complete()
 		self.audio.connect()
-		install()
 		if self.sfz_filename:
 			self.load_sfz()
 

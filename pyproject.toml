@@ -14,7 +14,7 @@ dependencies = [
 	"sfzen >= 2.3.2",
 	"soso_qt_extras >= 1.7.0",
 	"soundfile",
-	"xdg_soso >= 0.2.0"
+	"xdg_soso >= 1.0.1"
 ]
 
 [project.urls]

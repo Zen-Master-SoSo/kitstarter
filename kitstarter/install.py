@@ -18,25 +18,29 @@
 #  MA 02110-1301, USA.
 #
 """
-Install phoney-dictate as an application on XDG-compliant systems (like gnome).
+Install kitstarter as an application on XDG-compliant systems like Gnome desktop.
 """
-import logging
+import sys, logging
 from os.path import dirname, join
-from xdg_soso import XDGSetup, is_xdg
+from xdg_soso import is_xdg, XDGSetup, XDGMime
+from kitstarter import LOG_FORMAT
 
-def install():
+
+def main():
 	if is_xdg():
 		xdg = XDGSetup('kitstarter', 'KitStarter')
 		xdg.comment = 'KitStarter is a Qt -based program you can use to "sketch in" a drumkit SFZ file..'
+		xdg.vendor_name = 'zen_soso'
 		xdg.application_icon = join(dirname(__file__), 'res', 'kitstarter-icon.svg')
 		xdg.categories = ['AudioVideo', 'Audio']
 		xdg.keywords = ['Audio', 'Sound', 'midi', 'SFZ', 'Drumkit']
+		xdg.append_mime_type(XDGMime('audio/x-sfz', '*.sfz'))
 		xdg.install()
 
+
 if __name__ == '__main__':
-	log_format = "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
-	logging.basicConfig(level = logging.DEBUG, format = log_format)
-	install()
+	logging.basicConfig(level = logging.DEBUG, format = LOG_FORMAT)
+	sys.exit(main() or 0)
 
 
 #  end kitstarter/kitstarter/install.py
