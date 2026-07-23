@@ -37,7 +37,7 @@ from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 
 APPLICATION_NAME	= 'KitStarter'
