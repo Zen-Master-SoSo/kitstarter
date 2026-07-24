@@ -21,7 +21,7 @@
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
 import sys, logging
-from os import environ, getlogin
+from os import environ
 from argparse import ArgumentParser
 from PyQt5.QtWidgets import QApplication
 from xdg_soso import is_xdg
@@ -55,10 +55,8 @@ menu.""")
 
 	if options.install:
 		KitStarterSetup().install()
-		print(f'Successfully installed KitStarter for {getlogin()} on this machine.')
 	elif options.uninstall:
 		KitStarterSetup().uninstall()
-		print(f'Successfully uninstalled KitStarter for {getlogin()} on this machine.')
 	else:
 		#-----------------------------------------------------------------------
 		# Annoyance fix per:
