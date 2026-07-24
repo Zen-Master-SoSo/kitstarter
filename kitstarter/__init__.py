@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
 from xdg_soso import XDGSetup, XDGMime
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 
 APPLICATION_NAME	= 'KitStarter'
