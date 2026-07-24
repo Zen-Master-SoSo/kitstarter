@@ -21,7 +21,7 @@
 kitstarter is a program you can use to "sketch in" a drumkit SFZ file.
 """
 import sys, argparse, logging, json, glob
-from os.path import dirname
+from os.path import dirname, join
 try:
 	from os import startfile
 except ImportError:
@@ -36,6 +36,7 @@ except ImportError:
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
+from xdg_soso import XDGSetup, XDGMime
 
 __version__ = "0.10.0"
 
@@ -57,6 +58,19 @@ KEY_SHOW_SELECTED	= 'ShowSelectedSamples'
 KEY_SHOW_PINNED		= 'ShowPinnedSamples'
 
 SampleFileInfo		= namedtuple('SampleInfo', ['path', 'pitch', 'sfz_path', 'pinned'])
+
+
+class KitStarterSetup(XDGSetup):
+
+	def __init__(self):
+		super().__init__('kitstarter', 'KitStarter')
+		self._comment = 'KitStarter is a Qt -based program you can use to "sketch in" a drumkit SFZ file..'
+		self._vendor_name = 'zen_soso'
+		self._application_icon = join(dirname(__file__), 'res', 'kitstarter-icon.svg')
+		self._categories = ['AudioVideo', 'Audio']
+		self._keywords = ['Audio', 'Sound', 'midi', 'SFZ', 'Drumkit']
+		self.append_mime_type(XDGMime('audio/x-sfz', '*.sfz'))
+
 
 
 # -------------------------------------------------------------------
