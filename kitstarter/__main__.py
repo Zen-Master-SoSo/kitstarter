@@ -24,8 +24,9 @@ import sys, logging
 from os import environ
 from argparse import ArgumentParser
 from PyQt5.QtWidgets import QApplication
+from qt_extras.settings import init_settings
 from xdg_soso import is_xdg
-from kitstarter import LOG_FORMAT, KitStarterSetup
+from kitstarter import LOG_FORMAT, VENDOR_NAME, KitStarterSetup
 from kitstarter.gui.main_window import MainWindow
 
 
@@ -67,9 +68,10 @@ menu.""")
 			pass
 		#-----------------------------------------------------------------------
 		app = QApplication([])
+		init_settings(VENDOR_NAME, __package__)
 		main_window = MainWindow(options.Filename or None)
 		main_window.show()
-		return app.exec()
+		app.exec()
 
 
 if __name__ == "__main__":

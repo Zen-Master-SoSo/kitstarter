@@ -27,6 +27,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot, QTimer
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QComboBox, QLabel
 from qt_extras import ShutUpQT
+from qt_extras.geometry_saver import GeometrySaver
 from midi_notes import MIDI_DRUM_NAMES
 from sfzen.drumkits import iter_pitch_by_group
 from kitstarter import (get_setting, set_setting,
@@ -42,7 +43,7 @@ from kitstarter.jack_audio import Audio
 MESSAGE_TIMEOUT = 3000
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, GeometrySaver):
 	"""
 	User interface of the kitstarter application.
 	"""
@@ -162,6 +163,15 @@ class MainWindow(QMainWindow):
 	def closeEvent(self, _):
 		self.audio.quit()
 		self.save_geometry()
+
+	# -----------------------------------------------------------------
+	# GeometrySaver overrides
+
+	def get_setting(self, key, default = None, type_ = None):
+		return get_setting(key, default, type_)
+
+	def set_setting(self, key, value):
+		set_setting(key, value)
 
 	# -----------------------------------------------------------------
 	# Load / save

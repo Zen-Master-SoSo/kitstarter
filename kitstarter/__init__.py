@@ -36,11 +36,13 @@ except ImportError:
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QSplitter
 from qt_extras import DevilBox
+from qt_extras.settings import get_setting, set_setting
 from xdg_soso import XDGSetup, XDGMime
 
 __version__ = "0.11.0"
 
 
+VENDOR_NAME			= 'ZenSoSo'
 APPLICATION_NAME	= 'KitStarter'
 PACKAGE_DIR			= dirname(__file__)
 FILE_FILTERS		= ['*.ogg', '*.wav', '*.flac', '*.sfz']
@@ -63,95 +65,25 @@ SampleFileInfo		= namedtuple('SampleInfo', ['path', 'pitch', 'sfz_path', 'pinned
 class KitStarterSetup(XDGSetup):
 
 	def __init__(self):
-		super().__init__('kitstarter', 'KitStarter')
-		self._comment = 'KitStarter is a Qt -based program you can use to "sketch in" a drumkit SFZ file..'
-		self._vendor_name = 'zen_soso'
-		self._application_icon = join(dirname(__file__), 'res', 'kitstarter-icon.svg')
-		self._categories = ['AudioVideo', 'Audio']
-		self._keywords = ['Audio', 'Sound', 'midi', 'SFZ', 'Drumkit']
+		super().__init__(__package__, APPLICATION_NAME)
+		self.vendor_name = VENDOR_NAME
+		self.comment = 'KitStarter is a Qt -based program you can use to "sketch in" a drumkit SFZ file..'
+		self.application_icon = join(dirname(__file__), 'res', 'kitstarter-icon.svg')
+		self.categories = ['AudioVideo', 'Audio']
+		self.keywords = ['Audio', 'Sound', 'midi', 'SFZ', 'Drumkit']
 		self.append_mime_type(XDGMime('audio/x-sfz', '*.sfz'))
 
 
-
-# -------------------------------------------------------------------
-# Per-user application settings
-
-def __settings():
-	if not hasattr(__settings, 'settings'):
-		__settings.settings = QSettings('ZenSoSo', APPLICATION_NAME)
-	return __settings.settings
-
-def get_setting(key, default = None, type_ = None):
-	value = __settings().value(key, default)
-	if type_:
-		if value is None:
-			return type_()
-		if type_ is bool:
-			return value == '1'
-		return type_(value)
-	return value
-
-def set_setting(key, value):
-	if isinstance(value, bool):
-		value = '1' if value else '0'
-	__settings().setValue(key, value)
-
-def delete_setting(key):
-	__settings().remove(key)
-
-# -------------------------------------------------------------------
-# Cross-platform open any file / folder with system associated tool
-
 def xdg_open(filename):
+	"""
+	Cross-platform open any file / folder with system associated tool
+	"""
 	if system() == "Windows":
 		startfile(filename)
 	elif system() == "Darwin":
 		Popen(["open", filename])		# pylint: disable = consider-using-with
 	else:
 		Popen(["xdg-open", filename])	# pylint: disable = consider-using-with
-
-
-# -------------------------------------------------------------------
-# Add save / restore geometry methods to the QWidget class:
-
-def _restore_geometry(widget):
-	"""
-	Restores geometry from musecbox settings using automatically generated key.
-	"""
-	if not hasattr(widget, 'restoreGeometry'):
-		return
-	geometry = get_setting(_geometry_key(widget))
-	if not geometry is None:
-		widget.restoreGeometry(geometry)
-	for splitter in widget.findChildren(QSplitter):
-		geometry = get_setting(_splitter_geometry_key(widget, splitter))
-		if not geometry is None:
-			splitter.restoreState(geometry)
-
-def _save_geometry(widget):
-	"""
-	Saves geometry to musecbox settings using automatically generated key.
-	"""
-	if not hasattr(widget, 'saveGeometry'):
-		return
-	set_setting(_geometry_key(widget), widget.saveGeometry())
-	for splitter in widget.findChildren(QSplitter):
-		set_setting(_splitter_geometry_key(widget, splitter), splitter.saveState())
-
-def _geometry_key(widget):
-	"""
-	Automatic QSettings key generated from class name.
-	"""
-	return f'{widget.__class__.__name__}/geometry'
-
-def _splitter_geometry_key(widget, splitter):
-	"""
-	Automatic QSettings key generated from class name.
-	"""
-	return f'{widget.__class__.__name__}/{splitter.objectName()}/geometry'
-
-QWidget.restore_geometry = _restore_geometry
-QWidget.save_geometry = _save_geometry
 
 
 #  end kitstarter/kitstarter/__init__.py
