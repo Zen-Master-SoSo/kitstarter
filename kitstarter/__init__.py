@@ -39,7 +39,7 @@ from qt_extras import DevilBox
 from qt_extras.settings import get_setting, set_setting
 from xdg_soso import XDGSetup, XDGMime
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 VENDOR_NAME			= 'ZenSoSo'
